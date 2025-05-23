@@ -85,6 +85,11 @@ def archive():
 ### Pages under 'Services'
 
 # Page to list all the services based on the list of services on the cloud repo.
+
+# Below is the original way of creating the service_list page which runs slow.
+# Onder it, I try to implement a way to get the combined json file rather than
+# getting individual service information one-by-one. 
+""" 
 @app.route('/templates/services/service_list')
 def service_list():
     # Github API link to receive the list of the services on the cloud repo:
@@ -156,6 +161,34 @@ def service_list():
         return f"Error fetching files: {response.status_code}"
 
     # return render_template('services/service_list.html')
+"""
+
+# This is the new version that uses the combined json file. 
+@app.route('/templates/services/service_list')
+def service_list():
+    url = 'https://raw.githubusercontent.com/VHP4Safety/cloud/main/cap/service_index.json'
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        return f"Error fetching service list: {response.status_code}", 503
+
+    try:
+        services = response.json()
+
+        for service in services:
+            html_name = service.get('html_name')
+            md_name = service.get('md_file_name')
+            png_name = service.get('png_file_name')
+
+            service['url'] = f"https://cloud.vhp4safety.nl/service/{html_name}"
+            service['meta_data'] = f"https://raw.githubusercontent.com/VHP4Safety/cloud/main/docs/service/{md_name}" if md_name else "md file not found"
+            service['png'] = f"https://raw.githubusercontent.com/VHP4Safety/cloud/main/docs/service/{png_name}" if png_name else "../../static/images/logo.png"
+
+        return render_template('services/service_list.html', services=services)
+
+    except Exception as e:
+        return f"Error processing service data: {e}", 500
+
 
 @app.route('/services/qsprpred')
 def qsprpred():

@@ -126,9 +126,8 @@
                         <div class="btn-group d-flex" role="group" aria-label="Method example">
 
                              <!-- Catalog Page -->
-                            <a href="{{ url_for('methods') }}/{{ item.id }}" class="btn btn-outline-secondary" data-bs-toggle="methodtip" data-bs-title="View method details"><i class="bi bi-info-circle"></i></a>
+                            <a href="{{ url_for('methods') }}/{{ item.id }}"  class="btn btn-vhppink flex-grow-1"  data-bs-toggle="methodtip" data-bs-title="View method details"><i class="bi bi-info-circle"></i></a>
                  
-
 
                             <!-- Method Webpage -->
                             {% if item.main_url == "no_url" %}

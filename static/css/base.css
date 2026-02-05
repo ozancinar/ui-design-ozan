@@ -56,6 +56,14 @@ body {
       background-color: var(--bs-vhppink);
       border-color: var(--bs-vhppink);
 }
+
+.card-button-vhppink_distinct:hover, .card-button-vhppink_distinct:focus{
+      color: white;
+      background-color: var(--bs-vhppink_distinct);
+      border-color: var(--bs-vhppink_distinct);
+
+}
+
 .card-button-vhpblue:hover, .card-button-vhpblue:focus{
       color: white;
       background-color: var(--bs-vhpblue);

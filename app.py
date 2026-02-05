@@ -217,6 +217,85 @@ def data():
 
 
 ################################################################################
+### Pages under 'Models'
+@app.route("/models_page")
+def models():
+    # Get query parameters for pagination and search
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", 18, type=int)
+    search_query = request.args.get("query", "", type=str)
+
+    # Get filter parameters
+    filter_case_study = request.args.get("filter_case_study", "", type=str)
+    filter_regulatory_question = request.args.get(
+        "filter_regulatory_question", "", type=str
+    )
+    filter_flow_step = request.args.get("filter_flow_step", "", type=str)
+
+    # Build filter list (only include non-empty filters)
+    filters = []
+    if filter_case_study:
+        filters.append(("case_study", filter_case_study))
+    if filter_regulatory_question:
+        filters.append(("regulatory_question", filter_regulatory_question))
+    if filter_flow_step:
+        filters.append(("flow_step", filter_flow_step))
+
+    # Initialize extractor
+    extractor = BioStudiesExtractor(collection=BIOSTUDIES_COLLECTION)
+
+    # Fetch data based on search query or list all
+    if search_query:
+        results = extractor.search_studies(
+            search_query, page=page, page_size=page_size, filter=filters
+        )
+    else:
+        results = extractor.list_studies(
+            page=page, page_size=page_size, include_urls=True, filter=filters
+        )
+
+    # Extract studies and metadata
+    studies = results.get("hits", [])
+    total = results.get("total", 0)
+    error = results.get("error", None)
+
+    # Get filtering metadata (if filters were applied)
+    filters_applied = results.get("filters_applied", False)
+    hits_returned = results.get("hits_returned", len(studies))
+    pages_fetched = results.get("pages_fetched", 1)
+    page_size_met = results.get("page_size_met", True)
+
+    # Calculate pagination info
+    has_next = (page * page_size) < total
+    has_prev = page > 1
+
+    # Pass model data to template
+    return render_template(
+        "models_page.html",
+        studies=studies,
+        total=total,
+        page=page,
+        page_size=page_size,
+        search_query=search_query,
+        collection_name=BIOSTUDIES_COLLECTION_NAME,
+        collection=BIOSTUDIES_COLLECTION,
+        error=error,
+        has_next=has_next,
+        has_prev=has_prev,
+        filter_case_study=filter_case_study,
+        filter_regulatory_question=filter_regulatory_question,
+        filter_flow_step=filter_flow_step,
+        filters_applied=filters_applied,
+        hits_returned=hits_returned,
+        pages_fetched=pages_fetched,
+        page_size_met=page_size_met,
+        stage_explanations=STAGE_EXPLANATIONS,
+        reg_question_explanations=REG_QUESTION_EXPLANATIONS,
+    )
+
+
+
+################################################################################
 ### Pages under 'Tools'
 
 # Page to list all the tools based on the list of tools on the cloud repo.

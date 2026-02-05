@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/data.css" />
+ <!-- Model page (UI is a mix of the tools page and the data page for cohesion) -->
+
+<section class="container py-md-5 py-3 d-flex flex-column min-vh-100">
+    <!-- Page Title and Description -->
+    <div class="">
+        <h1><span class="text-vhpteal" id="collection-name">{{ collection_name or 'Data catalog' }} Models</span></h1>
+        <p class="text-secondary fs-5">Explore models generated or used in <span id="collection-name-sub">{{ collection_name }} and hosted on FAIRdom or BioModels archive.</span></p>
+    </div>
+
+    <nav class="navbar navbar-expand-lg bg-body-tertiary mb-3 d-inline">
+        <form method="GET" action="{{ url_for('data') }}" class="d-flex" role="search" id="search-form">
+            <input type="text" class="form-control me-2" name="query" id="search-input" value="{{ search_query or '' }}" placeholder="Search for models..." />
+            <!-- Hidden inputs for filters -->
+            <input type="hidden" name="filter_case_study" id="filter_case_study" value="{{ filter_case_study or '' }}" />
+            <input type="hidden" name="filter_regulatory_question" id="filter_regulatory_question" value="{{ filter_regulatory_question or '' }}" />
+            <input type="hidden" name="filter_flow_step" id="filter_flow_step" value="{{ filter_flow_step or '' }}" />
+            <div class="btn-group" role="group" aria-label="Search and filter buttons">
+                <button type="submit" class="btn btn-outline-vhpteal">Search</button>
+                <a href="{{ url_for('data') }}" class="btn btn-outline-danger text-nowrap">Clear</a>
+                <button type="button" id="filter-toggle-btn" class="btn btn-outline-secondary">Filters</button>
+            </div>
+        </form>
+        
+        <!-- Filter Panel -->
+        <div id="filter-panel" class="card bg-secondary-subtle p-3 mt-2" style="display: none;">
+            <div class="gap-2 pb-1">
+                <!-- Case Study Dropdown -->
+                <div class="btn-group mb-1">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                        Case Study
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" data-filter-type="case-study" data-filter-value="Thyroid">Thyroid</a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="case-study" data-filter-value="Kidney">Kidney</a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="case-study" data-filter-value="Parkinson">Parkinson</a></li>
+                    </ul>
+                </div>
+                
+                <!-- Flow Step Dropdown -->
+                <div class="btn-group mb-1">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                        Flow Step
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" data-filter-type="flow-step" data-filter-value="ADME" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ stage_explanations['ADME'] }}">ADME <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="flow-step" data-filter-value="Chemical Information" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ stage_explanations['Chemical Information'] }}">Chemical Information <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="flow-step" data-filter-value="General" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ stage_explanations['General'] }}">General <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="flow-step" data-filter-value="Hazard Assessment" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ stage_explanations['Hazard Assessment'] }}">Hazard Assessment <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="flow-step" data-filter-value="External exposure" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ stage_explanations['External exposure'] }}">External exposure <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="flow-step" data-filter-value="Generic" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ stage_explanations['Generic'] }}">Generic <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="flow-step" data-filter-value="Other" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ stage_explanations['Other'] }}">Other <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                    </ul>
+                </div>
+                
+                <!-- Regulatory Questions Dropdown -->
+                <div class="btn-group mb-1">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                        Regulatory Question
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" data-filter-type="reg-question" data-filter-value="Kidney Case Study (a)" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ reg_question_explanations['Kidney Case Study (a)'] }}">Kidney Case Study (a) <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="reg-question" data-filter-value="Kidney Case Study (b)" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ reg_question_explanations['Kidney Case Study (b)'] }}">Kidney Case Study (b) <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="reg-question" data-filter-value="Parkinson Case Study (a)" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ reg_question_explanations['Parkinson Case Study (a)'] }}">Parkinson Case Study (a) <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="reg-question" data-filter-value="Parkinson Case Study (b)" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ reg_question_explanations['Parkinson Case Study (b)'] }}">Parkinson Case Study (b) <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="reg-question" data-filter-value="Thyroid Case Study (a)" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ reg_question_explanations['Thyroid Case Study (a)'] }}">Thyroid Case Study (a) <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                        <li><a class="dropdown-item" href="#" data-filter-type="reg-question" data-filter-value="Thyroid Case Study (b)" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="{{ reg_question_explanations['Thyroid Case Study (b)'] }}">Thyroid Case Study (b) <i class="bi bi-question-circle text-vhpteal"></i></a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Selected Filters Display -->
+            <div id="selected-filters" class="input-group">
+                <span class="input-group-text" id="filters_label">Selected Filters:</span>
+                <div id="filter-tags"
+                    class="form-control d-flex flex-wrap align-items-center gap-2"
+                    aria-describedby="filters_label"
+                    role="group">
+                </div>
+            </div>
+            
+            <div class="">
+                <button id="apply-filter-btn" class="btn btn-sm btn-vhpteal mt-2">Apply</button>
+                <button id="clear-filter-btn" class="btn btn-sm btn-outline-danger mt-2">Clear</button>
+            </div>
+        </div>
+        
+        <div id="search-status" class="search-status"></div>
+    </nav>
+
+    <!-- Filter Status Display -->
+    {% if filters_applied %}
+    <div class="alert alert-info">
+        <strong>Filters Active:</strong> Showing {{ hits_returned }} results
+        {% if not page_size_met %}(fetched {{ pages_fetched }} page(s), timeout reached){% endif %}
+        | 
+        {% if filter_case_study %}<span class="badge bg-vhpteal">Case Study: {{ filter_case_study }}</span> {% endif %}
+        {% if filter_flow_step %}<span class="badge bg-vhpteal">Flow Step: {{ filter_flow_step }}</span> {% endif %}
+        {% if filter_regulatory_question %}<span class="badge bg-vhpteal">Regulatory Question: {{ filter_regulatory_question }}</span> {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="results-section">
+    <div id="results-list" class="results-list">
+        {% if error %}
+            <div class="alert alert-warning">{{ error }}</div>
+        {% elif studies %}
+
+            {% for study in studies %}
+            <div class="card p-0 mb-3"
+                 data-accession="{{ study.accession or study.accno }}">
+
+                <div class="card-header justify-content-between d-flex">
+                    <span class="result-accession">
+                        {{ study.accession or study.accno }}
+                    </span>
+                    <span class="badge bg-vhplight-blue text-secondary rounded-pill align-content-center">
+                        {{ study.type or 'unknown' }}
+                    </span>
+                </div>
+
+                <div class="card-body">
+                    <h5 class="card-title" style="word-break: break-word;">
+                        {{ study.title or 'Untitled Study' }}
+                    </h5>
+                    <div class="card-text">
+                        <span class="text-secondary">
+                            Released: {{ study.release_date or study.rdate or 'N/A' }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-footer bg-white border-0 py-1 pb-2">
+                    <div class="d-grid"
+                         style="grid-template-columns: repeat(3, 1fr); gap: 0.4rem;">
+                        <!-- This URL link should be changed to URL location of models -->
+                        <a href="{{ study.url or '#' }}" 
+                           class="btn btn-sm btn-outline-vhpteal"
+                           target="_blank">
+                            <i class="bi bi-box-arrow-up-right pe-1"></i>
+                            View 
+                        </a>
+                        <a href="#"
+                           class="btn btn-sm btn-outline-secondary view-details-btn">
+                            <i class="bi bi-box-fill pe-1"></i>
+                            RO-Crate
+                        </a>
+                        <!-- Button to show metadata on the modelpage itself -->
+                        <button type="button"
+                            class="btn btn-sm btn-outline-vhpteal"
+                            data-bs-toggle="tooltip"
+                            data-bs-title="View metadata (.md)"
+                            onclick="showMetadata('{{ study.meta_data }}', '{{ study.title }}')">
+                        <i class="bi bi-list-ul"></i>
+                            Metadata
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+        {% else %}
+            <div class="alert alert-warning">No studies found</div>
+        {% endif %}
+    </div>
+</div>
+        
+        <!-- Loading indicator for infinite scroll (kept for potential AJAX use) -->
+        <div id="loading-indicator" class="text-center my-4" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading more studies...</p>
+        </div>
+        
+        <div id="study-detail" class="study-detail" style="display: none;">
+            <button id="back-btn" class="btn btn-back">← Back to Results</button>
+            <div id="study-content"></div>
+        </div>
+    </div>
+
+</section>
+
+<script src="/static/js/search_filter.js"></script>
+<script>
+    // Initialize search and filter functionality for data catalog
+    document.addEventListener('DOMContentLoaded', () => {
+        SearchFilter.init({
+            filterTypes: ['case-study', 'flow-step', 'reg-question'],
+            multiSelect: false, // Single selection per category
+            initialFilters: {
+                'case-study': '{{ filter_case_study or "" }}',
+                'flow-step': '{{ filter_flow_step or "" }}',
+                'reg-question': '{{ filter_regulatory_question or "" }}'
+            },
+            filterFieldMap: {
+                'case-study': 'filter_case_study',
+                'flow-step': 'filter_flow_step',
+                'reg-question': 'filter_regulatory_question'
+            },
+            filterLabels: {
+                'case-study': 'Case Study',
+                'flow-step': 'Flow Step',
+                'reg-question': 'Reg. Question'
+            },
+            badgeClass: 'badge rounded-pill text-bg-vhpteal',
+            showFilterPanel: {% if filter_case_study or filter_flow_step or filter_regulatory_question %}true{% else %}false{% endif %}
+        });
+    });
+</script>
+
+
+<script src="/static/js/metadata_modal.js"></script>
+
+<!-- Metadata Modal -->
+<div class="modal fade" id="metadataModal" tabindex="-1" aria-labelledby="metadataModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="metadataModalLabel">Metadata</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="metadata-loading" class="text-center py-4">
+          <div class="spinner-border text-vhpteal" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Loading metadata...</p>
+        </div>
+        <div id="metadata-error" class="alert alert-warning" style="display: none;" role="alert"></div>
+        <div id="metadata-content" class="bg-light p-3 rounded" style="display: none; max-height: 500px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-vhpteal" onclick="downloadMetadata()">
+          <i class="bi bi-download me-1"></i>Download MD file
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

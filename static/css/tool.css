@@ -252,3 +252,15 @@
       overflow-wrap: break-word;
   }
 }
+
+/* Setting to make ontology tab mobile-friendly */
+#ontology-widget-container {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+#ontology-widget-container iframe,
+#ontology-widget-container .widget {
+  width: 100% ;
+  max-width: 100% ;
+}

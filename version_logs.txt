@@ -1,5 +1,5 @@
 
-Version 0.6-16 (2026-02-05)
+Version 0.6-17 (2026-02-12)
 --------------------------------------------------------------------------------
 - Adding Wikipedia and Surf RSD links to tools when the information is available.
 - Updating the partner logos.

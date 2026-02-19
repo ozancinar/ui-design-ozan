@@ -352,6 +352,34 @@ function updateBreadcrumb(step) {
   } else {
     nav.classList.remove("visible");
   }
+
+
+//---Updating URL from breadcrumb
+const caseStudy = getCaseStudyNameFromUrl();
+const base = "/casestudies/" + caseStudy;
+
+const urlParts = [];
+
+if (step >= 2 && currentStep1Value)
+  urlParts.push(currentStep1Value);
+
+if (step >= 3 && currentStep2Value)
+  urlParts.push(currentStep2Value);
+
+if (step >= 4 && currentStep3Value)
+  urlParts.push(currentStep3Value);
+
+if (step >= 5 && currentStep4Value)
+  urlParts.push(currentStep4Value);
+
+if (step >= 6 && currentStep5Value)
+  urlParts.push(currentStep5Value);
+
+const newUrl = base + (urlParts.length ? "/" + urlParts.join("/") : "");
+
+const cleanedUrl = newUrl.replace(/%20/g, "-").replace(/\s+/g, "-");
+history.pushState(null, "", cleanedUrl);
+
 }
 
 // Build Accordion HTML from JSON
@@ -456,3 +484,38 @@ function initWorkflowHeaderClicks() {
 document.addEventListener("DOMContentLoaded", function () {
   loadCaseStudyContent();
 });
+
+
+// Creating URL from breadcrumb
+window.addEventListener("popstate", () => {
+applyStateFromUrl();
+});
+function applyStateFromUrl() {
+const parts = window.location.pathname.split("/").filter(Boolean);
+const crumbs = parts.slice(2); 
+
+currentStep1Value = crumbs[0] || "Q1";
+currentStep2Value = crumbs[1] || "Kinetics";
+currentStep3Value = crumbs[2] || "Oral";
+currentStep4Value = crumbs[3] || "";
+currentStep5Value = crumbs[4] || "";
+const step = getCurrentStepNumber();
+updateStep2Content();
+updateStep3Content();
+updateStep4Content();
+updateStep5Content();
+updateStep6Content();
+updateBreadcrumb(step);
+updateWorkflowHeader(step);
+goToStep(step);
+}
+
+
+function getCurrentStepNumber() {
+  if (currentStep5Value) return 6;
+  if (currentStep4Value) return 5;
+  if (currentStep3Value) return 4;
+  if (currentStep2Value) return 3;
+  if (currentStep1Value) return 2;
+  return 1;
+}

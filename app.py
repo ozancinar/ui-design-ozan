@@ -134,7 +134,7 @@ def home():
         "home.html",
         num_tools=num_tools,
         num_case_studies=num_case_studies,
-        num_datasets=num_datasets,
+        num_datasets=num_datasets
     )
 
 
@@ -714,9 +714,9 @@ def workflows():
 
 
 # Individual case study page, dynamically filled based on URL
-@app.route("/casestudies/<case>", defaults={"steps": ""})
-@app.route("/casestudies/<case>/<path:steps>")
-def casestudy(case, steps):
+@app.route("/casestudies/<case>", defaults={"step": ""})
+@app.route("/casestudies/<case>/<path:step>")
+def casestudy(case, step):
     if case not in CASESTUDIES:
         abort(404)
     #JS will handle steps via the URL

@@ -707,7 +707,6 @@ def processflow():
 ################################################################################
 ### Pages under 'Case Studies'
 
-
 # General case studies page
 @app.route("/casestudies")
 def workflows():
@@ -715,13 +714,13 @@ def workflows():
 
 
 # Individual case study page, dynamically filled based on URL
-@app.route("/casestudies/<case>")
-def casestudy_main(case):
-    # Only allow known case studies
+@app.route("/casestudies/<case>", defaults={"steps": ""})
+@app.route("/casestudies/<case>/<path:steps>")
+def casestudy(case, steps):
     if case not in CASESTUDIES:
         abort(404)
-    return render_template(f"case_studies/casestudy.html", case=case)
-
+    #JS will handle steps via the URL
+    return render_template("case_studies/casestudy.html", case=case)
 
 @app.route("/workflow/<workflow>")
 def show(workflow):

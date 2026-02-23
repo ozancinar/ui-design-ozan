@@ -2,9 +2,9 @@
 // JavaScript for Individual Case Study pages
 
 // --- State management ---
-let currentStep1Value = "Q1";
-let currentStep2Value = "Kinetics";
-let currentStep3Value = "Oral";
+let currentStep1Value = "";
+let currentStep2Value = "";
+let currentStep3Value = "";
 let currentStep4Value = "";
 let currentStep5Value = "";
 let currentStep6Value = "";
@@ -91,6 +91,7 @@ function updateStep1Content() {
 }
 function updateStep2Content() {
   if (!contentLoaded) return;
+  if (!step2Contents[currentStep1Value]) return;
   const nav = step2Contents[currentStep1Value];
   document.getElementById("step2-content").innerHTML =
     `<h1 class="text-vhpblue">${nav.navTitle}</h1><p>${nav.navDescription}</p>` +
@@ -101,6 +102,7 @@ function updateStep3Content() {
   if (!contentLoaded) return;
   if (!step3Contents[currentStep1Value]) return;
   const step = step3Contents[currentStep1Value][currentStep2Value];
+  if (!step3Contents[currentStep1Value][currentStep2Value]) return;
   if (step.steps) {
     document.getElementById("step3-content").innerHTML =
       `<h1 class="text-vhpblue"><span class='kinetics-bold'>${step.navTitle}</span></h1><p class='step-desc'>${step.navDescription}</p>` +
@@ -182,8 +184,8 @@ function updateStep6Content() {
 // --- Navigation logic ---
 function selectStep1(q) {
   currentStep1Value = q;
-  currentStep2Value = "Kinetics";
-  currentStep3Value = "Oral";
+  currentStep2Value = "";
+  currentStep3Value = "";
   updateStep2Content();
   updateStep3Content();
   updateStep4Content();
@@ -246,8 +248,10 @@ function getCaseStudyVersionFromUrl() {
 }
 
 function loadCaseStudyContent() {
-  initWorkflowHeaderClicks(); 
-  updateWorkflowHeader(1);
+  console.log("Loading case study content...")
+  step = applyStateFromUrl();
+  initWorkflowHeaderClicks();
+  updateWorkflowHeader(step);
   const caseStudy = getCaseStudyNameFromUrl();
   const caseStudyBranch = getCaseStudyVersionFromUrl();
   var data_url = `https://raw.githubusercontent.com/VHP4Safety/ui-casestudy-config/${caseStudyBranch}/${caseStudy}_content.json`;
@@ -262,10 +266,9 @@ function loadCaseStudyContent() {
       step5Contents = content.step5Contents;
       step6Contents = content.step6Contents;
       contentLoaded = true;
-      currentStep1Value = "Q1";
       updateStep1Content();
-      updateBreadcrumb(1);
-      updateWorkflowHeader(1);
+      updateBreadcrumb(step);
+      updateWorkflowHeader(step);
       updateStep2Content();
       updateStep3Content();
       updateStep4Content();
@@ -377,7 +380,7 @@ if (step >= 6 && currentStep5Value)
 
 const newUrl = base + (urlParts.length ? "/" + urlParts.join("/") : "");
 
-const cleanedUrl = newUrl.replace(/%20/g, "-").replace(/\s+/g, "-");
+const cleanedUrl = newUrl.replace(/%20/g, "_").replace(/\s+/g, "_");
 history.pushState(null, "", cleanedUrl);
 
 }
@@ -492,30 +495,32 @@ applyStateFromUrl();
 });
 function applyStateFromUrl() {
 const parts = window.location.pathname.split("/").filter(Boolean);
-const crumbs = parts.slice(2); 
+  console.log(parts)
+const crumbs = parts;
+console.log(crumbs)
+console.log(crumbs.length)
 
-currentStep1Value = crumbs[0] || "Q1";
-currentStep2Value = crumbs[1] || "Kinetics";
-currentStep3Value = crumbs[2] || "Oral";
-currentStep4Value = crumbs[3] || "";
-currentStep5Value = crumbs[4] || "";
+currentStep1Value = (crumbs[2] || "").replace(/_/g, " ");
+console.log(currentStep1Value)
+currentStep2Value = (crumbs[3] || "").replace(/_/g, " ");
+console.log(currentStep2Value)
+currentStep3Value = (crumbs[4] || "").replace(/_/g, " ");
+console.log(currentStep3Value)
+currentStep4Value = (crumbs[5] || "").replace(/_/g, " ");
+console.log(currentStep4Value)
+currentStep5Value = (crumbs[6] || "").replace(/_/g, " ");
+console.log(currentStep5Value)
 const step = getCurrentStepNumber();
-updateStep2Content();
-updateStep3Content();
-updateStep4Content();
-updateStep5Content();
-updateStep6Content();
-updateBreadcrumb(step);
-updateWorkflowHeader(step);
 goToStep(step);
+return step;
 }
 
 
 function getCurrentStepNumber() {
-  if (currentStep5Value) return 6;
-  if (currentStep4Value) return 5;
-  if (currentStep3Value) return 4;
-  if (currentStep2Value) return 3;
-  if (currentStep1Value) return 2;
+  if (currentStep5Value != "") return 6;
+  if (currentStep4Value != "") return 5;
+  if (currentStep3Value != "") return 4;
+  if (currentStep2Value != "") return 3;
+  if (currentStep1Value != "") return 2;
   return 1;
 }

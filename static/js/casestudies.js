@@ -231,8 +231,7 @@ function getCaseStudyNameFromUrl() {
   if (params.has("case")) {
     return params.get("case");
   }
-  // fallback: default to 'thyroid'
-  return "thyroid";
+  
 }
 
 function getCaseStudyVersionFromUrl() {
@@ -243,7 +242,7 @@ function getCaseStudyVersionFromUrl() {
   } else if (params.has("casestudycommit")) {
     return params.get("casestudycommit");
   }
-  // fallback: default to 'thyroid'
+  // fallback: default
   return "main";
 }
 
@@ -471,17 +470,21 @@ function updateWorkflowHeader(activeStepNumber) {
   });
 }
 
-// Function to be able to click on the step-icons in the workflow header
+// Function for backward clickability of the step-icons in the workflow header
+let currentStep=1;
 function initWorkflowHeaderClicks() {
   const steps = document.querySelectorAll(".step-item");
 
   steps.forEach(step => {
     step.addEventListener("click", () => {
       const stepNum = parseInt(step.getAttribute("data-step"));
-      goToStep(stepNum);
+      if (stepNum <= currentStep) { //Goes back to step 1 (start of the workflow)
+         goToStep(stepNum); 
+      }
     });
   });
 }
+
 
 // --- Load content from JSON and initialize ---
 document.addEventListener("DOMContentLoaded", function () {

@@ -495,21 +495,16 @@ applyStateFromUrl();
 });
 function applyStateFromUrl() {
 const parts = window.location.pathname.split("/").filter(Boolean);
-  console.log(parts)
 const crumbs = parts;
 console.log(crumbs)
 console.log(crumbs.length)
 
 currentStep1Value = (crumbs[2] || "").replace(/_/g, " ");
-console.log(currentStep1Value)
 currentStep2Value = (crumbs[3] || "").replace(/_/g, " ");
-console.log(currentStep2Value)
 currentStep3Value = (crumbs[4] || "").replace(/_/g, " ");
-console.log(currentStep3Value)
 currentStep4Value = (crumbs[5] || "").replace(/_/g, " ");
-console.log(currentStep4Value)
 currentStep5Value = (crumbs[6] || "").replace(/_/g, " ");
-console.log(currentStep5Value)
+
 const step = getCurrentStepNumber();
 goToStep(step);
 return step;

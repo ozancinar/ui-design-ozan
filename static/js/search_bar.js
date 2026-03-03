@@ -53,6 +53,7 @@ const pages = [
   { title: "QSPred", url: "/tools/qspred" },
   { title: "R-ODAF Shiny", url: "/tools/r_odaf"},
   { title: "Sombie", url: "/tools/sombie" },
+  { title: "ASReview", url: "/tools/asreview" },
   { title: "Sysrev", url: "/tools/sysrev" },
   { title: "OECD QSAR Toolbox", url: "/tools/oecd_qsar_toolbox" },
   { title: "ToxTemp Assistant", url: "/tools/toxtemp_assistant" },

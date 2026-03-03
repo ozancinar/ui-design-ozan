@@ -698,10 +698,10 @@ def tool_page(toolname):
 ### Pages under 'Process Flow'
 
 
-# General Process Flow page
-@app.route("/process_flow")
-def processflow():
-    return render_template("process_flow.html")
+# General Safety Assessment Workflow page
+@app.route("/Safety_Assessment_Workflow")
+def SafetyAssessmentWorkflow():
+    return render_template("Safety_Assessment_Workflow.html")
 
 
 ################################################################################

@@ -36,26 +36,26 @@
         <div id="filter-panel" class="card bg-secondary-subtle p-3 mt-2" style="display: none;">
   <!-- explanation of the generic risk-assessment process flow -->
   <div class="">
-    <h3><span class="text-vhpblue" id="collection-name">Process Flow Steps</span></h3>
+    <h3><span class="text-vhpblue" id="collection-name">Safety Assessment Workflow Steps</span></h3>
     <p class="mb-4">The Virtual Human Platform implements the generic
-      risk assessment workflow as a process flow comprising of five steps.
+      risk assessment workflow as a Safety Assessment Workflow comprising of five steps.For more information regarding the Safety Assessment Workflow, visit our <a class="link-vhpblue text-decoration-none" href="{{ url_for('SafetyAssessmentWorkflow') }}" >Safety Assessment Workflow info page.</a> <p>
     </p>
   </div>
   <div class="row row-cols-1 row-cols-md-4 gap-2 mx-auto">
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="methodtip" data-bs-placement="top" title="Hazard/chemical characteristics is a Process Flow Step that categorizes services that use molecular structures, chemical descriptors, and databases to predict or analyze the properties, behavior, and potential risks of chemical substances.">
+      data-bs-toggle="methodtip" data-bs-placement="top" title="Hazard/chemical characteristics is a Safety Assessment Workflow Step that categorizes services that use molecular structures, chemical descriptors, and databases to predict or analyze the properties, behavior, and potential risks of chemical substances.">
       Hazard / Chemical Characteristics</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="methodtip" data-bs-placement="top" title="External exposure is a Process Flow Step which categorizes services that evaluate and analyze the route, duration, magnitude and frequency of exposure of an organism or (sub)population to one or multiple chemicals.">
+      data-bs-toggle="methodtip" data-bs-placement="top" title="External exposure is a Safety Assessment Workflow Step which categorizes services that evaluate and analyze the route, duration, magnitude and frequency of exposure of an organism or (sub)population to one or multiple chemicals.">
       (External) Exposure</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="methodtip" data-bs-placement="top" title="Toxicokinetics/ADME is a Process Flow Step which categorizes services that analyze the kinetics (absorption, distribution, metabolism and excretion) of chemicals and how these processes influence the internal dose.">
+      data-bs-toggle="methodtip" data-bs-placement="top" title="Toxicokinetics/ADME is a Safety Assessment Workflow Step which categorizes services that analyze the kinetics (absorption, distribution, metabolism and excretion) of chemicals and how these processes influence the internal dose.">
       Toxicokinetics / ADME</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="methodtip" data-bs-placement="top" title="Toxicodynamics/AOP is a Process Flow Step which categorizes services that use or extend the (quantitative) AOP framework to analyze and assess the interaction of chemicals with biological targets.">
+      data-bs-toggle="methodtip" data-bs-placement="top" title="Toxicodynamics/AOP is a Safety Assessment Workflow Step which categorizes services that use or extend the (quantitative) AOP framework to analyze and assess the interaction of chemicals with biological targets.">
       Toxicodynamics / AOP</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="methodtip" data-bs-placement="top" title="Adverse Outcome is a Process Flow Step which specifically refers to clinical and epidemiological effects. It categorizes services that provide information on the toxicological endpoints and adverse outcomes at a clinical or epidemiological level of chemical exposures.">
+      data-bs-toggle="methodtip" data-bs-placement="top" title="Adverse Outcome is a Safety Assessment Workflow Step which specifically refers to clinical and epidemiological effects. It categorizes services that provide information on the toxicological endpoints and adverse outcomes at a clinical or epidemiological level of chemical exposures.">
       Adverse Outcome</button>
   </div>
   <div class=""><p>&nbsp;</p></div> <!-- how to do this properly?? -->
@@ -64,7 +64,7 @@
                 <!-- Flow Step Dropdown -->
                 <div class="btn-group mb-1">
                     <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
-                        Process Flow Step
+                        Safety Assessment Workflow Step
                     </button>
                     <ul class="dropdown-menu">
                         {% for stage in stages %}

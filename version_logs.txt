@@ -1,4 +1,12 @@
 
+Version 0.7-2 (2026-03-03)
+--------------------------------------------------------------------------------
+- Switched to the Swarm cluster architecture.
+- Creating urls for the individual case study pages.
+- Edits in the navigation from the main webpage.
+- Adding an introduction video about the project to the main webpage.
+
+
 Version 0.6-17 (2026-02-12)
 --------------------------------------------------------------------------------
 - Adding Wikipedia and Surf RSD links to tools when the information is available.

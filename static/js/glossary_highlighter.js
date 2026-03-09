@@ -30,10 +30,9 @@
     
     // Exclusions and inclusions
     excludeTags: ['script', 'style', 'noscript', 'iframe', 'object'],
-    excludeAttributes: ['data-no-vhp-glossary', 'data-vhp-glossary-skip'],
     excludeClassSubstrings: ['vhp-highlight', 'highlighted'],
 
-    includeAttributes: ['data-vhp-glossary'],
+    excludeAttributes: ['data-vhp-glossary-skip'],
     
     // CSS Styling - Leave null to use base.css styles, or customize here to override
     // Set these values to override the default CSS styles in base.css
@@ -259,19 +258,19 @@
   function shouldProcessNode(node) {
     if (node.nodeType !== Node.TEXT_NODE || !node.textContent.trim()) return false;
 
-    // If includeAttributes is non-empty, only process nodes that are descendants
+    // If excludeAttributes is non-empty, only process nodes that are not descendants
     // of an element carrying one of those attributes.
-    if (CONFIG.includeAttributes.length) {
+    if (CONFIG.excludeAttributes.length) {
       let el = node.parentElement;
-      let insideIncluded = false;
+      let insideExcluded = false;
       while (el) {
-        if (CONFIG.includeAttributes.some(attr => el.hasAttribute(attr))) {
-          insideIncluded = true;
+        if (CONFIG.excludeAttributes.some(attr => el.hasAttribute(attr))) {
+          insideExcluded = true;
           break;
         }
         el = el.parentElement;
       }
-      if (!insideIncluded) return false;
+      if (insideExcluded) return false;
     }
 
     let parent = node.parentElement;

@@ -108,6 +108,14 @@
   <div class="d-none d-lg-flex align-items-center gap-3">
     <!-- Tools Button Group -->
 
+    <!-- Glossary Toggle -->
+    <button id="glossary-toggle" class="btn btn-outline-vhpblue btn-sm text-nowrap" type="button"
+            data-vhp-glossary-skip aria-label="Toggle glossary highlighting"
+            data-bs-toggle="tooltip" data-bs-placement="bottom"
+            title="Click on highlighted terms to see their definition">
+      <i class="bi bi-book me-1"></i>Glossary
+    </button>
+
      <!-- Case Studies Button Group -->
     <div class="btn-group" role="group">
       <button class="btn btn-vhppink_distinct text-white text-nowrap" style="min-width: 120px;" onclick="location.href='/casestudies'" type="button">Case Studies</button>
@@ -200,6 +208,7 @@
 
     <!-- Data Button -->
     <button class="btn btn-vhpteal text-nowrap" style="min-width: 120px;" onclick="location.href='/data'" type="button">Data</button>
+
   </div>
 </nav>
 
@@ -323,6 +332,12 @@
 
       <!-- Data button -->
       <button class="btn btn-vhpteal mt-2" onclick="location.href='/data'" data-bs-dismiss="offcanvas">Data</button>
+
+      <button class="btn btn-outline-vhpblue mt-2" type="button" data-vhp-glossary-skip
+              onclick="document.getElementById('glossary-toggle')?.click(); this.closest('.offcanvas') && bootstrap.Offcanvas.getInstance(this.closest('.offcanvas'))?.hide();"
+              aria-label="Toggle glossary highlighting">
+        <i class="bi bi-book me-1"></i>Glossary
+      </button>
     </div>
   </div>
 </div>

@@ -12,6 +12,7 @@
     'button', 'select', 'option', 'textarea', 'input',
     'a', 'label', 'code', 'pre', 'kbd', 'samp', 'var',
     'nav', 'footer', 'header',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'svg', 'canvas', 'img', 'video', 'audio',
   ]);
 
@@ -121,7 +122,7 @@
     span.textContent = match.text;
     span.setAttribute('data-vhp-glossary', '');
     span.setAttribute('role', 'term');
-    span.classList.add('d-inline', 'p-0');
+    span.classList.add('d-inline', 'p-0', 'rounded');
 
     span.setAttribute('data-bs-toggle', 'tooltip');
     span.setAttribute('data-bs-html', 'true');
@@ -190,9 +191,10 @@
 
   function setGlossaryVisible(visible) {
     glossaryActive = visible;
+    localStorage.setItem('vhp-glossary-active', visible ? '1' : '0');
     document.querySelectorAll('[data-vhp-glossary]').forEach(span => {
-      span.classList.toggle('bg-vhpblue', visible);
-      span.classList.toggle('bg-opacity-10', visible);
+      span.classList.toggle('bg-vhplight-blue', visible);
+      span.classList.toggle('bg-opacity-50', visible);
       if (visible) {
         span.setAttribute('data-bs-toggle', 'tooltip');
       } else {
@@ -201,24 +203,27 @@
         span.removeAttribute('data-bs-toggle');
       }
     });
-    const btn = document.getElementById('glossary-toggle');
-    if (btn) btn.classList.toggle('active', visible);
+    const toggle = document.getElementById('glossary-toggle');
+    if (toggle) toggle.checked = visible;
+    const toggleMobile = document.getElementById('glossary-toggle-mobile');
+    if (toggleMobile) toggleMobile.checked = visible;
     if (visible) initTooltips();
   }
 
-  function showHint(btn) {
+  function showHint(toggle) {
     if (localStorage.getItem('vhp-glossary-hint-seen')) return;
-    const hint = new bootstrap.Popover(btn, {
-      content:   'Click to toggle glossary term highlighting',
+    const wrapper = toggle.closest('.form-check') || toggle;
+    const hint = new bootstrap.Popover(wrapper, {
+      content:   'Toggle to highlight glossary terms on the page',
       placement: 'bottom',
       trigger:   'manual',
       offset:    [0, 10],
-      container: btn.closest('.navbar') || 'body',
+      container: wrapper.closest('.navbar') || 'body',
     });
     hint.show();
     localStorage.setItem('vhp-glossary-hint-seen', '1');
-    const dismiss = () => { hint.dispose(); btn.removeEventListener('click', dismiss); };
-    btn.addEventListener('click', dismiss);
+    const dismiss = () => { hint.dispose(); toggle.removeEventListener('change', dismiss); };
+    toggle.addEventListener('change', dismiss);
     setTimeout(dismiss, 4000);
   }
 
@@ -236,16 +241,15 @@
         catch (e) { return }
       }
 
-      setGlossaryVisible(false);
+      const savedState = localStorage.getItem('vhp-glossary-active') === '1';
+      setGlossaryVisible(savedState);
 
-      const btn = document.getElementById('glossary-toggle');
-      if (btn) {
-        new bootstrap.Tooltip(btn);
-        btn.addEventListener('click', () => {
-          bootstrap.Tooltip.getInstance(btn)?.hide();
-          setGlossaryVisible(!glossaryActive);
+      const toggle = document.getElementById('glossary-toggle');
+      if (toggle) {
+        toggle.addEventListener('change', () => {
+          setGlossaryVisible(toggle.checked);
         });
-        showHint(btn);
+        showHint(toggle);
       }
     } catch (e) {
       return;

@@ -90,3 +90,23 @@ body {
   }
 }
 
+/* Glossary tooltip – fixed bottom-left overlay */
+.tooltip.vhp-glossary-tooltip-fixed {
+  --bs-tooltip-max-width: 300px;
+  position: fixed !important;
+  bottom: 2px !important;
+  left: 2px !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+
+  .tooltip-arrow {
+    display: none !important;
+  }
+
+  .tooltip-inner {
+    text-align: left;
+  }
+}
+

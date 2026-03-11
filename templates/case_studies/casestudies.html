@@ -5,12 +5,9 @@
 
   <div class="">
         <h1><span class="text-vhpblue" id="collection-name">Case Studies</span></h1>
-        <p class="text-secondary fs-5">The Virtual Human Platform has been developed using three example case studies, which function
-            as a proof of concept. 
-        </p>
-        <p class="mb-4">
-        For each case study, two exemplary regulatory questions were formulated
-            to show how the platform can be used for a step-by-step human-based risk assessment.  
+        <p class="text-secondary fs-5">The Virtual Human Platform was developed using three case studies based on human scenarios.   </p>
+        <p class="mb-4" style="text-align: justify;">
+        For each case study, two regulatory questions were defined to demonstrate how the platform supports step-by-step safety assessment. Within the Safety Assessment Steps, users can access the tools, methods, and data needed to address these regulatory questions. These steps organize the platform’s processes, guiding users through structured, transparent assessments. For more information, visit our Safety Assessment Steps <a class="link-vhpblue text-decoration-none" href="{{ url_for('SafetyAssessmentWorkflow') }}" >info page.</a>
         </p>
     </div>
   <div class="row row-cols-1 row-cols-md-3 g-4 mt-3">
@@ -30,7 +27,7 @@
       <a href="/casestudies/parkinson" class="text-decoration-none">
         <div class="card h-100 text-center card-button card-button-vhpblue">
               <img src="/static/images/image45_hexagon.svg" class="card-img-top p-4 img-fluid" alt="Parkinson case study" style="max-width: 120px; margin: 0 auto;">
-            <div class="card-body">
+   .         <div class="card-body">
               <h5 class="card-title">Parkinson case study</h5>
               <p class="card-text">To study life course pesticide exposure and neurodegenerative disease.</p>
             </div>
@@ -55,22 +52,22 @@
   <div class=""><p>&nbsp;</p></div> <!-- how to do this properly?? -->
   <div class="">
     <h1><span class="text-vhpblue" id="collection-name">Safety Assessment Workflow</span></h1>
-    <p class="text-secondary fs-5">The Virtual Human Platform implements the generic risk assessment workflow as a safety assessment workflow comprising of five steps. For more information regarding the process flow, visit our <a class="link-vhpblue text-decoration-none" href="{{ url_for('SafetyAssessmentWorkflow') }}" > Safety Assessment Workflow info page.</a> <p>
+    <p class="text-secondary fs-5">The Virtual Human Platform implements a generic safety assessment as a five-step process. For more information regarding the process flow, visit our <a class="link-vhpblue text-decoration-none" href="{{ url_for('SafetyAssessmentWorkflow') }}" > Safety Assessment Workflow info page.</a> <p>
     </p>
   </div>
   <div class="row row-cols-1 row-cols-md-4 gap-2 mx-auto">
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="tooltip" data-bs-placement="top" title="Hazard/chemical characteristics is a Process Flow Step that categorizes services that use molecular structures, chemical descriptors, and databases to predict or analyze the properties, behavior, and potential risks of chemical substances.">
-      Hazard / Chemical Characteristics</button>
+      data-bs-toggle="tooltip" data-bs-placement="top" title="Chemical characteristics and hazard identification is a Process Flow Step that categorizes services that use molecular structures, chemical descriptors, and databases to predict or analyze the properties, behavior, and potential risks of chemical substances.">
+      Chemical Characteristics and hazard identification</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="tooltip" data-bs-placement="top" title="External exposure is a Process Flow Step which categorizes services that evaluate and analyze the route, duration, magnitude and frequency of exposure of an organism or (sub)population to one or multiple chemicals.">
-      (External) Exposure</button>
+      data-bs-toggle="tooltip" data-bs-placement="top" title="Exposure is a Process Flow Step which categorizes services that evaluate and analyze the route, duration, magnitude and frequency of exposure of an organism or (sub)population to one or multiple chemicals.">
+      Exposure</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="tooltip" data-bs-placement="top" title="Toxicokinetics/ADME is a Process Flow Step which categorizes services that analyze the kinetics (absorption, distribution, metabolism and excretion) of chemicals and how these processes influence the internal dose.">
-      Toxicokinetics / ADME</button>
+      data-bs-toggle="tooltip" data-bs-placement="top" title="Toxicokinetics is a Process Flow Step which categorizes services that analyze the kinetics (absorption, distribution, metabolism and excretion) of chemicals and how these processes influence the internal dose.">
+      Toxicokinetics</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
-      data-bs-toggle="tooltip" data-bs-placement="top" title="Toxicodynamics/AOP is a Process Flow Step which categorizes services that use or extend the (quantitative) AOP framework to analyze and assess the interaction of chemicals with biological targets.">
-      Toxicodynamics / AOP</button>
+      data-bs-toggle="tooltip" data-bs-placement="top" title="Toxicodynamics is a Process Flow Step which categorizes services that use or extend the (quantitative) AOP framework to analyze and assess the interaction of chemicals with biological targets.">
+      Toxicodynamics</button>
     <button class="btn btn-primary btn-vhpblue card-button-vhpblue" type="submit"
       data-bs-toggle="tooltip" data-bs-placement="top" title="Adverse Outcome is a Process Flow Step which specifically refers to clinical and epidemiological effects. It categorizes services that provide information on the toxicological endpoints and adverse outcomes at a clinical or epidemiological level of chemical exposures.">
       Adverse Outcome</button>

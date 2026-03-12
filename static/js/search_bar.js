@@ -14,121 +14,137 @@
 
 
 //Step 1:Pages array with titles and URLs as entrypoint for fuse.js
-const pages = [
-
-  { title: "Tools Home", url: "/tools" },
-  { title: "AOP Builder", url: "/tools/aop-builder" },
-  { title: "AOP Suite", url: "/tools/aopsuite" },
-  { title: "AOP Wiki API", url: "/tools/aopwikiapi" },
-  { title: "AOP Wiki", url: "/tools/aopwiki" },
-  { title: "ArrayAnalysis", url: "/tools/arrayanalysis" },
-  { title: "BioModels", url: "/tools/biomodels" },
-  { title: "Biotransformer", url: "/tools/biotransformer" },
-  { title: "BMDExpress 3", url: "/tools/bmdexpress_3" },
-  { title: "BridgeDb", url: "/tools/bridgedb" },
-  { title: "CDK Depict", url: "/tools/cdkdepict" },
-  { title: "CellDesigner", url: "/tools/celldesigner" },
-  { title: "Chemistry Development Kit", url: "/tools/cdk"},
-  { title: "CompTox", url: "/tools/comptox" },
-  { title: "COPASI", url: "/tools/copasi" },
-  { title: "CPLogD", url: "/tools/cplogd" },
-  { title: "Decimer", url: "/tools/decimer" },
-  { title: "EMA Documents", url: "/tools/ema_documents" },
-  { title: "FairdomHub", url: "/tools/fairdomhub" },
-  { title: "Fairspace", url: "/tools/fairspace" },
-  { title: "Farmacokompas", url: "/tools/farmacokompas" },
-  { title: "Flame", url: "/tools/flame" },
-  { title: "GScholar", url: "/tools/gscholar" },
-  { title: "Google", url: "/tools/google" },
-  { title: "JRC Data Catalogue", url: "/tools/jrc_data_catalogue" },
-  { title: "LLEMY", url: "/tools/llemy" },
-  { title: "MCT8 Dock", url: "/tools/mct8-dock" },
-  { title: "MolAOP Analyser", url: "/tools/MolAOP analyser" },
-  { title: "DSLD", url: "/tools/dsld" },
-  { title: "OQT Assistant", url: "/tools/oqt_assistant" },
-  { title: "OntoX Physiological Maps", url: "/tools/ontox_physiological_maps" },
-  { title: "OP PBK Model", url: "/tools/oppbk_model"},
-  { title: "Opsin", url: "/tools/opsin" },
-  { title: "qAOP-App", url: "/tools/qaop_app" },
-  { title: "QSPred", url: "/tools/qspred" },
-  { title: "R-ODAF Shiny", url: "/tools/r_odaf"},
-  { title: "Sombie", url: "/tools/sombie" },
-  { title: "ASReview", url: "/tools/asreview" },
-  { title: "Sysrev", url: "/tools/sysrev" },
-  { title: "OECD QSAR Toolbox", url: "/tools/oecd_qsar_toolbox" },
-  { title: "ToxTemp Assistant", url: "/tools/toxtemp_assistant" },
-  { title: "TXG Mapr", url: "/tools/txg_mapr" },
-  { title: "VHP Glossary", url: "/tools/vhp_glossary" },
-  { title: "Wikibase", url: "/tools/wikibase" },
-  { title: "Wikibase User Interface", url: "/tools/kb" },
-  { title: "WikiPathways AOP", url: "/tools/wikipathways_aop" },
-  { title: "Xplore AOP", url: "/tools/xploreaop" },
-
-  // Case Studies
-  { title: "Case Studies", url: "/casestudies" },
-  { title: "Thyroid Case Study", url: "/casestudies/thyroid" },
-  { title: "Parkinson Case Study", url: "/casestudies/parkinson" },
-  { title: "Kidney Case Study", url: "/casestudies/kidney" },
-
-  // Data & Home
-  { title: "Data", url: "/data" },
-  { title: "Home", url: "/" }
-];
-
-
-//Step 2: Initialization of Fuse.js and connection between Fuse and HTML
-const fuse = new Fuse(pages, {
-  keys: ["title"],
-  threshold: 0.4,       // Setting for typo tolerance
-  distance: 100,  //determines how close the match is to the fuzzy location. Default is 100
-  minMatchCharLength: 2, //Minimum length of characters needed to search
-  IncludeMatches: true, 
-  ignoreLocation: true //To match anywhere in the title
-});
-
-const pairs = [
-  { input: document.getElementById("searchInput"),        container: document.getElementById("results") },
-  { input: document.getElementById("searchInputMobile"),  container: document.getElementById("resultsMobile") },
-].filter(p => p.input && p.container); // optional: avoid nulls if one doesn't exist on a page
-
-function renderResults(container, results, query) {
-  if (!results.length) {
-    container.innerHTML = `<li class="list-group-item">No results found for "${escapeHtml(query)}"</li>`;
-    return;
+function normalize(raw, url_prefix) {
+  if (!raw) return [];
+  // If already an array of {id, title}, return normalized
+  if (Array.isArray(raw)) {
+    return raw.map(it => ({ title: it.title || it.service || it.label || it.id || '', url: it.url || it.mainUrl || it.mainUrl || url_prefix + it.id }));
   }
-
-  // Escape query for regex, otherwise special chars break highlighting
-  const safeQuery = escapeRegExp(query);
-  const regex = new RegExp(`(${safeQuery})`, "gi");
-
-  container.innerHTML = results
-    .map(r => {
-      const title = r.item.title ?? "";
-      const url = r.item.url ?? "#";
-
-      const highlightedTitle = escapeHtml(title).replace(regex, `<mark>$1</mark>`);
-
-      return `<a class="list-group-item" href="${r.item.url}" style="text-decoration:none; color:inherit;">
-                  ${highlightedTitle}
-                </a>`;
-    })
-    .join("");
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return normalize(parsed);
+    } catch (err) {
+      return [];
+    }
+  }
+  if (typeof raw === 'object') {
+    return Object.keys(raw).map(k => ({ title: raw[k].service || raw[k].title || raw[k].label || k, url: raw[k].url || url_prefix + it.id }));
+  }
+  return [];
 }
 
-// Bind each input to its own container
-pairs.forEach(({ input, container }) => {
-  input.addEventListener("input", () => {
-    const query = input.value.trim();
 
-    if (!query) {
-      container.innerHTML = "";
-      return;
+let tools = [];
+let methods = [];
+async function waitForGlobal(name, { timeout = 5000, interval = 50 } = {}) {
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    if (window[name] !== undefined) return window[name];
+    await new Promise(r => setTimeout(r, interval));
+  }
+  throw new Error(`Timed out waiting for window.${name}`);
+}
+
+let pages = [];
+// Initalize Search after we have tools and methods available
+(async () => {
+  try {
+    const toolsMenu = await waitForGlobal("TOOLS_MENU", { timeout: 8000 });
+    const methodsMenu = await waitForGlobal("METHODS_MENU", {timeout:8000});
+    tools = normalize(toolsMenu, "/tools/");
+    methods = normalize(methodsMenu, "/methods/")
+    // collate search pages
+    const homeEntry = [  
+       { title: "Home", url: "/" }
+    ]
+
+    const toolsHome = [
+      { title: "Tools Overview", url: "/tools" },
+    ]
+    const methodsHome = [
+      {title: "Methods Overview", url: "/methods"}
+    ]
+
+    const caseStudies = [
+      // Case Studies
+      { title: "Case Studies", url: "/casestudies" },
+      { title: "Thyroid Case Study", url: "/casestudies/thyroid" },
+      { title: "Parkinson Case Study", url: "/casestudies/parkinson" },
+      { title: "Kidney Case Study", url: "/casestudies/kidney" },
+    ]
+
+      // Data & Home
+    const dataEntry=[
+      { title: "Data Overview", url: "/data" },
+    ];
+
+    pages = [...homeEntry,...caseStudies,...toolsHome,...tools,...methodsHome,...methods,...dataEntry]
+
+    
+
+    //Step 2: Initialization of Fuse.js and connection between Fuse and HTML
+    const fuse = new Fuse(pages, {
+      keys: ["title"],
+      threshold: 0.4,       // Setting for typo tolerance
+      distance: 100,  //determines how close the match is to the fuzzy location. Default is 100
+      minMatchCharLength: 2, //Minimum length of characters needed to search
+      IncludeMatches: true, 
+      ignoreLocation: true //To match anywhere in the title
+    });
+
+    const pairs = [
+      { input: document.getElementById("searchInput"),        container: document.getElementById("results") },
+      { input: document.getElementById("searchInputMobile"),  container: document.getElementById("resultsMobile") },
+    ].filter(p => p.input && p.container); // optional: avoid nulls if one doesn't exist on a page
+
+    function renderResults(container, results, query) {
+      if (!results.length) {
+        container.innerHTML = `<li class="list-group-item">No results found for "${escapeHtml(query)}"</li>`;
+        return;
+      }
+
+      // Escape query for regex, otherwise special chars break highlighting
+      const safeQuery = escapeRegExp(query);
+      const regex = new RegExp(`(${safeQuery})`, "gi");
+
+      container.innerHTML = results
+        .map(r => {
+          const title = r.item.title ?? "";
+          const url = r.item.url ?? "#";
+
+          const highlightedTitle = escapeHtml(title).replace(regex, `<mark>$1</mark>`);
+
+          return `<a class="list-group-item" href="${r.item.url}" style="text-decoration:none; color:inherit;">
+                      ${highlightedTitle}
+                    </a>`;
+        })
+        .join("");
     }
 
-    const results = fuse.search(query); // assumes fuse is defined
-    renderResults(container, results, query);
-  });
-});
+    // Bind each input to its own container
+    pairs.forEach(({ input, container }) => {
+      input.addEventListener("input", () => {
+        const query = input.value.trim();
+
+        if (!query) {
+          container.innerHTML = "";
+          return;
+        }
+
+        const results = fuse.search(query); // assumes fuse is defined
+        renderResults(container, results, query);
+      });
+    });
+
+
+
+  } catch (err) {
+    console.warn(err.message);
+  }
+})();
+
 
 
 // ---------- helpers ----------
@@ -150,6 +166,8 @@ function escapeAttr(str) {
   // For href etc. Very simple safe-escape.
   return escapeHtml(str);
 }
+
+
 
 //Step 4: enable live search (dynamically seeing results when user is typing)
 

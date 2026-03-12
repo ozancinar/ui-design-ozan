@@ -6,6 +6,7 @@ Version 0.7-4 (2026-03-09)
 - Edits in the navigation from the main webpage.
 - Adding an introduction video about the project to the main webpage.
 - Protoyping a functionality to turn off highlighting the glossary elements. 
+- Adding Zenodo datasets to the Data section. 
 
 
 Version 0.6-17 (2026-02-12)

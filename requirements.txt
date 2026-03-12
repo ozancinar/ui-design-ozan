@@ -1,4 +1,5 @@
 flask==3.1.1
+flask-caching==2.3.1
 requests==2.32.4
 #wikidataintegrator==0.9.30
 setuptools==78.1.1 # Provides pkg_resources module, required for wikidataintegrator

@@ -6,6 +6,11 @@ body {
   font-family: "Open Sans", Arial, sans-serif;
   scroll-behavior: smooth;
   padding-top: 100px; 
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+body::-webkit-scrollbar {
+  display: none;
 }
 
 /*Search bar functionality design*/
@@ -15,7 +20,6 @@ body {
   max-height: 200px;
   overflow-y: auto;
   padding-left: 0;
-  border: 1px solid #ccc;
   background-color: #fff;
   position: absolute;
   width: 50%;
@@ -35,8 +39,8 @@ body {
 
 /* Highlight matched text as pink */
 .search-results mark {
-  background-color: var(--bs-vhppink);
-  color: black;
+  background-color: var(--bs-vhplight-blue);
+  border-radius: var(--bs-border-radius);
 }
 
 /* Change to borders of live dropdrownmenu to improve visual look */

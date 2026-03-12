@@ -5,7 +5,8 @@ import re
 
 import requests
 import urllib.parse
-from flask import Blueprint, Flask, abort, jsonify, render_template, request, send_file
+from flask import Flask, abort, jsonify, render_template, request
+from flask_caching import Cache
 from jinja2 import TemplateNotFound
 from werkzeug.routing import BaseConverter
 
@@ -17,10 +18,14 @@ from biostudies.search import BioStudiesExtractor
 from zenodo.search import ZenodoExtractor
 
 ################################################################################
+CACHE_TIMEOUT = 60*60*24*5 # 5 days
 ### Configuration for BioStudies Integration
 # Change these variables to switch between collections
 BIOSTUDIES_COLLECTION = "VHP4Safety"  # Replace with "EU-ToxRisk" to test
 BIOSTUDIES_COLLECTION_NAME = "VHP4Safety"  # Display name for the page
+ZENODO_COMMUNITY = "vhp4safety"  # zenodo community
+ZENODO_RECORD_TYPE = "dataset"  # only show datasets
+
 CASESTUDIES = ["thyroid", "kidney", "parkinson"]  # List of valid case studies
 
 ###Shared explanation dictionaries for filters (used in both tools and data page)
@@ -33,6 +38,9 @@ STAGE_EXPLANATIONS = {
     "Generic": "Generic category.",
     "Other": "Other or unknown category.",
 }
+METHODS_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
+# TOOLS and SERVICES are synonymous
+SERVICES_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
 
 REG_QUESTIONS = {
     "reg_q_1a": {
@@ -83,8 +91,73 @@ class RegexConverter(BaseConverter):
         super(RegexConverter, self).__init__(url_map)
         self.regex = items[0]
 
-
+cache_config = {
+    "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
+    "CACHE_DEFAULT_TIMEOUT": CACHE_TIMEOUT,  # 60 min chaching
+}
 app = Flask(__name__)
+app.config.from_mapping(cache_config)
+cache = Cache(app)
+
+
+@cache.memoize(timeout=CACHE_TIMEOUT)
+def get_json_dict(url: str, timeout: int = 5) -> dict:
+    """Fetch xxxx_index.json from the cloud repo and return as a dictionary.
+    Return an empty dict on any error to avoid breaking pages that depend on it.
+    """
+    try:
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code != 200:
+            return {}
+        data = resp.json()
+        if isinstance(data, dict):
+            return data
+        else:
+            return {}
+    except Exception:
+        return {}
+
+
+@cache.memoize(timeout=CACHE_TIMEOUT)
+def get_repository_data(
+    search_query: str, page: int = 1, page_size: int = 18, filters: list | None = None
+) -> tuple[dict, dict]:
+    """
+    Extract data from respositories
+    """
+    # Initialize extractor for BIOSTUDIES
+    bs_extractor = BioStudiesExtractor(collection=BIOSTUDIES_COLLECTION)
+
+    # Fetch data based on search query or list all
+    if search_query:
+        bs_results = bs_extractor.search_studies(
+            search_query, page=page, page_size=page_size, filters=filters
+        )
+    else:
+        bs_results = bs_extractor.list_studies(
+            page=page, page_size=page_size, include_urls=True, filters=filters
+        )
+
+    # Initialize extractor for Zenodo
+    zen_extractor = ZenodoExtractor(
+        community=ZENODO_COMMUNITY, record_type=ZENODO_RECORD_TYPE
+    )
+
+    if not filters:
+        # We currently do no filter Zenodo datasets.
+        if search_query:
+            zen_result = zen_extractor.search_records(
+                search_query, page=page, size=page_size
+            )
+        else:
+            # load metadata needed for is_rocrate filtering in template
+            zen_result = zen_extractor.list_records(
+                page=page, size=page_size, load_metadata=True
+            )
+    else:
+        zen_result = {"hits": [], "total": 0, "error": None}
+
+    return bs_results, zen_result
 
 
 # Provide methods list to all templates for the Methods dropdown in the navbar
@@ -93,12 +166,8 @@ def inject_methods_menu():
     """Fetch methods_index.json and expose a simple list of {id, title} to templates.
     Return an empty list on any error to avoid breaking pages.
     """
-    try:
-        url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
-        resp = requests.get(url, timeout=5)
-        if resp.status_code != 200:
-            return {"methods_menu": []}
-        data = resp.json()
+    data = get_json_dict(METHODS_URL)
+    if data:
         items = []
         for key, val in data.items() if isinstance(data, dict) else []:
             title = (
@@ -111,34 +180,65 @@ def inject_methods_menu():
         # sort by title
         items = sorted(items, key=lambda x: x["title"].lower())
         return {"methods_menu": items}
-    except Exception:
+    else:
         return {"methods_menu": []}
+
+
+@app.context_processor
+def inject_tools_menu():
+    """Fetch methods_index.json and expose a simple list of {id, title} to templates.
+    Return an empty list on any error to avoid breaking pages.
+    """
+    data = get_json_dict(SERVICES_URL)
+    if data:
+        items = []
+        for key, val in data.items() if isinstance(data, dict) else []:
+            title = val.get("service") or key
+            items.append({"id": key, "title": title})
+        # sort by title
+        items = sorted(items, key=lambda x: x["title"].lower())
+        return {"tools_menu": items}
+    else:
+        return {"tools_menu": []}
+
+
+@app.context_processor
+def inject_data_menu():
+    """Fetch methods_index.json and expose a simple list of {id, title} to templates.
+    Return an empty list on any error to avoid breaking pages.
+    """
+    bs_results, zen_results = get_repository_data(search_query="")
+    hits:list = bs_results.get("hits", [])
+    hits.extend(zen_results.get("hits", []))
+    if hits:
+        items = []
+        for hit in hits:
+            title = hit.get("title")
+            id = hit.get("accession", "") or hit.get("doi_url","") or hit.get("id","")
+            url = hit.get("url","") or hit.get("doi_url")
+            items.append({"id": id, "title": title, "url":url})
+            # sort by title
+            items = sorted(items, key=lambda x: x["title"].lower())
+        return {"data_menu": items}
+    else:
+        return {"data_menu": []}
 
 
 ################################################################################
 ### The landing page
 @app.route("/")
 def home():
-    # get number of tools:
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching service list: {response.status_code}", 503
-
     try:
-        tools = (
-            response.json()
+        tools = get_json_dict(
+            SERVICES_URL
         )  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
     except Exception as e:
         return f"Error processing service data: {e}", 500
     num_tools = len(tools)
     num_case_studies = len(CASESTUDIES)
-    num_datasets = BioStudiesExtractor(collection=BIOSTUDIES_COLLECTION).list_studies(
-        page=1, page_size=1
-    )["total"]
-    num_datasets += ZenodoExtractor().list_records(page=1, size=1)["total"]
+    bs_res, zen_res = get_repository_data(search_query="")
+    num_datasets = bs_res["total"] + zen_res["total"]
     return render_template(
         "home.html",
         num_tools=num_tools,
@@ -172,35 +272,9 @@ def data():
     if filter_flow_step:
         filters.append(("flow_step", filter_flow_step))
 
-    # Initialize extractor for BIOSTUDIES
-    bs_extractor = BioStudiesExtractor(collection=BIOSTUDIES_COLLECTION)
-
-    # Fetch data based on search query or list all
-    if search_query:
-        bs_results = bs_extractor.search_studies(
-            search_query, page=page, page_size=page_size, filter=filters
-        )
-    else:
-        bs_results = bs_extractor.list_studies(
-            page=page, page_size=page_size, include_urls=True, filter=filters
-        )
-
-    # Initialize extractor for Zenodo
-    zen_extractor = ZenodoExtractor()
-
-    if not filters:
-        # We currently do no filter Zenodo datasets.
-        if search_query:
-            zen_result = zen_extractor.search_records(
-                search_query, page=page, size=page_size
-            )
-        else:
-            # load metadata needed for is_rocrate filtering in template
-            zen_result = zen_extractor.list_records(
-                page=page, size=page_size, load_metadata=True
-            )
-    else:
-        zen_result = {"hits": [], "total": 0, "error": None}
+    bs_results, zen_results = get_repository_data(
+        search_query, page, page_size, filters=filters
+    )
 
     # Extract studies and metadata
     studies = bs_results.get("hits", [])
@@ -208,9 +282,9 @@ def data():
     bs_error: str | None = bs_results.get("error", None)
 
     # Extract datasets and metadata from Zenodo
-    datasets = zen_result.get("hits", [])
-    zen_total = zen_result.get("total", 0)
-    zen_error: str | None = zen_result.get("error", None)
+    datasets = zen_results.get("hits", [])
+    zen_total = zen_results.get("total", 0)
+    zen_error: str | None = zen_results.get("error", None)
 
     # combine totals for pagination
     total = bs_total + zen_total
@@ -282,11 +356,11 @@ def models():
     # Fetch data based on search query or list all
     if search_query:
         results = extractor.search_studies(
-            search_query, page=page, page_size=page_size, filter=filters
+            search_query, page=page, page_size=page_size, filters=filters
         )
     else:
         results = extractor.list_studies(
-            page=page, page_size=page_size, include_urls=True, filter=filters
+            page=page, page_size=page_size, include_urls=True, filters=filters
         )
 
     # Extract studies and metadata
@@ -332,114 +406,13 @@ def models():
 ################################################################################
 ### Pages under 'Tools'
 
-# Page to list all the tools based on the list of tools on the cloud repo.
-
-# Below is the original way of creating the service_list page which runs slow.
-# Further down below it, I try to implement a way to get the combined json file
-# rather than getting individual service information one-by-one.
-""" 
-@app.route("/tools")
-def tools():
-    # Github API link to receive the list of the tools on the cloud repo:
-    url = f"https://api.github.com/repos/VHP4Safety/cloud/contents/docs/service"
-    response = requests.get(url)
-
-    # Checking if the request was successful (status code 200).
-    if response.status_code == 200:
-        # Extracting the list of files.
-        tools_content = response.json()
-
-        # Separating .json and .md files.
-        json_files = {
-            file["name"]: file
-            for file in tools_content
-            if file["type"] == "file" and file["name"].endswith(".json")
-        }
-        md_files = {
-            file["name"]: file
-            for file in tools_content
-            if file["type"] == "file" and file["name"].endswith(".md")
-        }
-        png_files = {
-            file["name"]: file
-            for file in tools_content
-            if file["type"] == "file" and file["name"].endswith(".png")
-        }
-
-        # Creating an empty list to store the results.
-        tools = []
-
-        # Fetching the .json files.
-        for json_file_name, json_file in json_files.items():
-            # Skipping the template.json file.
-            if json_file_name == "template.json":
-                continue
-
-            json_url = json_file[
-                "download_url"
-            ]  # Using the download URL from the API response.
-            json_response = requests.get(json_url)
-
-            if json_response.status_code == 200:
-                json_data = json_response.json()
-
-                # Extracting the 'tool' field from the json file.
-                tool_name = json_data.get("service")
-                description_string = json_data.get("description")
-
-                if tool_name:
-                    # Replacing the .json extension with the .md to get the corresponding .md file.
-                    md_file_name = json_file_name.replace(".json", ".md")
-                    html_name = json_file_name.replace(".json", ".html")
-                    url = "https://cloud.vhp4safety.nl/service/" + html_name
-
-                    if md_file_name in md_files:
-                        md_file_url = f"https://raw.githubusercontent.com/VHP4Safety/cloud/main/docs/service/{md_file_name}"
-                    else:
-                        md_file_url = "md file not found"
-                    png_file_name = md_file_name.replace(".md", ".png")
-
-                    if png_file_name in png_files:
-                        png_file_url = f"https://raw.githubusercontent.com/VHP4Safety/cloud/main/docs/service/{png_file_name}"
-                        tools.append(
-                            {
-                                "service": tool_name,
-                                "url": url,
-                                "meta_data": md_file_url,
-                                "description": description_string,
-                                "png": png_file_url,
-                            }
-                        )
-                    else:
-                        tools.append(
-                            {
-                                "service": tool_name,
-                                "url": url,
-                                "meta_data": md_file_url,
-                                "description": description_string,
-                                "png": "../../static/images/logo.png",
-                            }
-                        )
-
-        # Passing the tools data to the template after processing all JSON files.
-        return render_template("tools/tools.html", tools=tools)
-    else:
-        return f"Error fetching files: {response.status_code}"
-"""
-
 
 ### Here begins the updated version for creating the tool list page.
 @app.route("/tools")
 def tools():
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching service list: {response.status_code}", 503
-
     try:
-        tools = (
-            response.json()
+        tools = get_json_dict(
+            SERVICES_URL
         )  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
 
@@ -664,14 +637,8 @@ def method_page(methodid):
     """Render a single method page using templates/methods/method.html
     Method details are taken from methods_index.json (keyed by method id).
     """
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching methods list: {response.status_code}", 503
-
     try:
-        methods = response.json()
+        methods = get_json_dict(METHODS_URL)
         # methods_index.json is a dict keyed by method id
         if methodid not in methods:
             abort(404)
@@ -710,14 +677,8 @@ def method_page(methodid):
 @app.route("/tools/<toolname>")
 def tool_page(toolname):
     # get the tools metadata:
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching service list: {response.status_code}", 503
-
     try:
-        tools = response.json()
+        tools = get_json_dict(SERVICES_URL)
         tools = dict(tools)
         # Geting the service_list.json in the dictionary format.
         # Converting the dictionary to a list object.

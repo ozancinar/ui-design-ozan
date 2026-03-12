@@ -90,3 +90,29 @@ body {
   }
 }
 
+/* Glossary tooltip – fixed bottom-left overlay, VHP themed */
+.tooltip.vhp-glossary-tooltip-fixed {
+  --bs-tooltip-max-width: 300px;
+  --bs-tooltip-bg: var(--bs-vhpblue);
+  --bs-tooltip-color: #fff;
+  --bs-tooltip-opacity: 0.95;
+  --bs-tooltip-padding-x: 0.75rem;
+  --bs-tooltip-padding-y: 0.5rem;
+  position: fixed !important;
+  bottom: 2px !important;
+  left: 2px !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+
+  .tooltip-arrow {
+    display: none !important;
+  }
+
+  .tooltip-inner {
+    text-align: left;
+    border-radius: var(--bs-border-radius-lg);
+  }
+}
+

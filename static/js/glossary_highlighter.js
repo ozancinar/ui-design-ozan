@@ -1,548 +1,264 @@
 /**
  * VHP4Safety Glossary Term Highlighter
- * Automatically highlights glossary terms in page content with interactive tooltips
  */
 
-(function() {
+(function () {
   'use strict';
 
-  // ============================================================================
-  // CONFIGURATION - All tweakable parameters
-  // ============================================================================
-  const CONFIG = {
-    // Source
-    glossaryUrl: 'https://raw.githubusercontent.com/VHP4Safety/glossary/refs/heads/main/glossary.owl',
-    glossaryWebsiteUrl: 'https://glossary.vhp4safety.nl/',
-    loadLast: true,               // Load glossary after other scripts have run
-    // Tooltip behavior
-    // tooltipPlacement: 'top' will show tooltips above the highlighted word.
-    // Set to 'bottom-left' to keep the current bottom-left behavior but add 7px vertical spacing below the tooltip.
-    tooltipPlacement: 'bottom-left',      // 'top' | 'bottom-left'
-    tooltipShowDelay: 0,           // ms before showing tooltip
-    tooltipHideDelay: 2000,        // ms before hiding tooltip after unhover
-    singleTooltipOnly: true,       // Only show one tooltip at a time
-    
-    // Highlighting
-    caseSensitive: false,          // Match terms case-insensitively
-    matchWholeWords: true,         // Only match whole words (use word boundaries, keep true, not working well otherwise)
-    highlightClass: 'glossary-term',
-    highlightType: 'bold',         // 'subtle' = dotted underline, 'bold' = bold text
-    
-    // Exclusions and inclusions
-    excludeTags: ['script', 'style', 'noscript', 'iframe', 'object'],
-    excludeClassSubstrings: ['vhp-highlight', 'highlighted'],
+  const GLOSSARY_OWL_URL  = 'https://raw.githubusercontent.com/VHP4Safety/glossary/refs/heads/main/glossary.owl';
+  const GLOSSARY_SITE_URL = 'https://glossary.vhp4safety.nl/';
+  const SKIP_TAGS = new Set([
+    'script', 'style', 'noscript', 'iframe', 'object',
+    'button', 'select', 'option', 'textarea', 'input',
+    'a', 'label', 'code', 'pre', 'kbd', 'samp', 'var',
+    'nav', 'footer', 'header',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'svg', 'canvas', 'img', 'video', 'audio',
+  ]);
 
-    excludeAttributes: ['data-vhp-glossary-skip'],
-    
-    // CSS Styling - Leave null to use base.css styles, or customize here to override
-    // Set these values to override the default CSS styles in base.css
-    css: null,  // Set to object with custom styles to override, or null to use base.css
-    
-    // Example custom CSS configuration (uncomment and modify to override base.css):
-    // css: {
-    //   // Subtle highlight style
-    //   subtle: {
-    //     backgroundColor: 'rgba(48, 123, 191, 0.2)',
-    //     borderBottom: '2px dotted #307bbf',
-    //     color: 'inherit',
-    //     hoverBackgroundColor: 'rgba(48, 123, 191, 0.35)',
-    //     hoverBorderBottom: '2px solid #307bbf'
-    //   },
-    //   // Bold highlight style
-    //   bold: {
-    //     backgroundColor: 'transparent',
-    //     fontWeight: '700',
-    //     color: 'inherit',
-    //     borderBottom: 'none',
-    //     hoverBackgroundColor: 'rgba(48, 123, 191, 0.1)'
-    //   },
-    //   // Base styles for all highlights
-    //   base: {
-    //     cursor: 'help',
-    //     padding: '2px 4px',
-    //     borderRadius: '3px',
-    //     display: 'inline'
-    //   },
-    //   // Tooltip styles
-    //   tooltip: {
-    //     fontSize: '0.875rem',
-    //     maxWidth: '300px',
-    //     backgroundColor: '#19b8a5', // var(--bs-vhpteal)
-    //     textAlign: 'left',
-    //     opacity: '1'
-    //   }
-    // },
-    
-    // Logging
-    debug: false
-  };
+  const SKIP_CLASSES = [
+    'btn', 'nav-link', 'navbar', 'dropdown-item', 'dropdown-toggle', 'dropdown-menu',
+    'accordion-button', 'accordion-header',
+    'offcanvas', 'modal', 'toast', 'popover', 'tooltip',
+    'breadcrumb', 'pagination',
+    'form-control', 'form-select', 'form-check', 'input-group',
+    'badge', 'alert', 'spinner',
+    'card-button', 'card-header', 'card-footer', 'card-title',
+    'visually-hidden',
+    'search-results',
+    'scroll-down-arrow',
+    'vhp-highlight', 'highlighted',
+  ];
 
-  // ============================================================================
-  // STATE
-  // ============================================================================
-  let glossaryTerms = [];
-  let isProcessing = false;
-  const tooltipManager = {
-    activeTooltip: null,
-    hideTimer: null
-  };
+  // Helpers
 
-  // ============================================================================
-  // UTILITY FUNCTIONS
-  // ============================================================================
-  
-  const log = (...args) => CONFIG.debug && console.log('[VHP Glossary]', ...args);
-  const escapeHtml = text => { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; };
-  const escapeRegex = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  const extractProperty = (props, pattern) => {
-    const match = props.match(pattern);
-    return match ? match[1].trim() : '';
-  };
-  
-  const getGlossaryUrl = uri => {
-    if (uri?.includes('#')) {
-      return `${CONFIG.glossaryWebsiteUrl}#${uri.split('#')[1]}`;
-    }
-    return CONFIG.glossaryWebsiteUrl;
-  };
+  const escapeHtml  = t => { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; };
+  const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  // ============================================================================
-  // DYNAMIC STYLING
-  // ============================================================================
-  
-  function injectCustomStyles() {
-    // If CONFIG.css is null or undefined, use base.css styles instead
-    if (!CONFIG.css) {
-      log('Using base.css styles (CONFIG.css is null)');
-      return;
-    }
-    
-    // Remove any existing style element
-    const existingStyle = document.getElementById('vhp-glossary-styles');
-    if (existingStyle) existingStyle.remove();
-    
-    const style = document.createElement('style');
-    style.id = 'vhp-glossary-styles';
-    
-    const { base, subtle, bold, tooltip } = CONFIG.css;
-    
-    style.textContent = `
-      /* Base glossary term styles */
-      .${CONFIG.highlightClass} {
-        cursor: ${base.cursor} !important;
-        padding: ${base.padding} !important;
-        border-radius: ${base.borderRadius} !important;
-        display: ${base.display} !important;
-      }
-      
-      /* Subtle highlight style */
-      .${CONFIG.highlightClass}-subtle {
-        background-color: ${subtle.backgroundColor} !important;
-        border-bottom: ${subtle.borderBottom} !important;
-        color: ${subtle.color} !important;
-      }
-      
-      .${CONFIG.highlightClass}-subtle:hover {
-        background-color: ${subtle.hoverBackgroundColor} !important;
-        border-bottom: ${subtle.hoverBorderBottom} !important;
-      }
-      
-      /* Bold highlight style */
-      .${CONFIG.highlightClass}-bold {
-        background-color: ${bold.backgroundColor} !important;
-        font-weight: ${bold.fontWeight} !important;
-        color: ${bold.color} !important;
-        border-bottom: ${bold.borderBottom} !important;
-      }
-      
-      .${CONFIG.highlightClass}-bold:hover {
-        background-color: ${bold.hoverBackgroundColor} !important;
-      }
-      
-      /* Tooltip styles */
-      .tooltip {
-        font-size: ${tooltip.fontSize} !important;
-        opacity: ${tooltip.opacity} !important;
-      }
-      
-      .tooltip-inner {
-        max-width: ${tooltip.maxWidth} !important;
-        text-align: ${tooltip.textAlign} !important;
-        background-color: ${tooltip.backgroundColor} !important;
-        opacity: ${tooltip.opacity} !important;
-      }
-      
-      .tooltip-arrow::before {
-        border-top-color: ${tooltip.backgroundColor} !important;
-      }
-    `;
-    
-    document.head.appendChild(style);
-    log('Custom styles injected');
+  function glossaryUrl(uri) {
+    return uri?.includes('#') ? `${GLOSSARY_SITE_URL}#${uri.split('#')[1]}` : GLOSSARY_SITE_URL;
   }
 
-  // ============================================================================
-  // PARSING
-  // ============================================================================
-  
-  function parseOWLGlossary(turtleText) {
-    // Use shared TTLParser if available, otherwise use embedded parser
-    if (window.TTLParser) {
-      log('Using shared TTLParser module');
-      return window.TTLParser.parseGlossary(turtleText, {
-        requireLabel: true,
-        requireClass: true,
-        minLabelLength: 2,
-        extractRelations: false
-      });
-    }
-    
-    // Fallback: embedded parser (for backwards compatibility)
-    log('Using embedded parser (TTLParser not loaded)');
-    const termBlockRegex = /<([^>]+)>\s*\n([\s\S]*?)(?=\n<|$)/g;
+  // Parsing glossary
+
+  function parseGlossary(turtleText) {
+    const rx = /<([^>]+)>\s*\n([\s\S]*?)(?=\n<|$)/g;
+    const prop = (block, p) => { const m = block.match(p); return m ? m[1].trim() : ''; };
     const terms = [];
-    let match;
-    
-    while ((match = termBlockRegex.exec(turtleText)) !== null) {
-      const [, uri, props] = match;
-      
-      // Must be an owl:Class with a label
-      if (!props.includes('rdf:type') || !props.includes('owl:Class')) continue;
-      
-      const label = extractProperty(props, /rdfs:label\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
+    let m;
+
+    while ((m = rx.exec(turtleText)) !== null) {
+      const [, uri, block] = m;
+      if (!block.includes('rdf:type') || !block.includes('owl:Class')) continue;
+
+      const label = prop(block, /rdfs:label\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
       if (!label || label === 'nan' || label.length < 2) continue;
-      const smiles = extractProperty(props, /chebi:smiles\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
-      const definition = extractProperty(props, /dc:description\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
-      const synonym = extractProperty(props, /ncit:C42610\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
-      
-      const termObj = {
-        uri,
-        label,
-        definition,
-        synonyms: synonym ? [synonym] : []
+
+      const term = { uri, label,
+        definition: prop(block, /dc:description\s+"([^"]+)"(?:@[a-zA-Z-]+)?/),
+        synonyms:   [],
       };
-      if (smiles) termObj.smiles = smiles;
-      terms.push(termObj);
+      const syn = prop(block, /ncit:C42610\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
+      if (syn) term.synonyms.push(syn);
+      const smiles = prop(block, /chebi:smiles\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
+      if (smiles) term.smiles = smiles;
+      terms.push(term);
     }
-    
-    log(`Parsed ${terms.length} glossary terms`);
     return terms;
   }
 
-  // ============================================================================
-  // TOOLTIP CONTENT
-  // ============================================================================
-  
-  function createTooltipContent(term) {
-    const parts = [`<strong>${escapeHtml(term.label)}</strong>`];
-    
-    if (term.definition) {
-      parts.push(`<br><small>${escapeHtml(term.definition)}</small>`);
-    }
-    
-    if (term.synonyms?.length) {
-      parts.push(`<br><small class="text">Synonyms: ${escapeHtml(term.synonyms.join(', '))}</small>`);
-    }
-    
-    const url = getGlossaryUrl(term.uri);
-    parts.push(`<div class="mt-1"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="text-white text-decoration-underline"><i class="bi bi-box-arrow-up-right"></i> View full definition</a></div>`);
-    
-    return parts.join('');
-  }
+  // Node filtering
 
-  // ============================================================================
-  // NODE FILTERING
-  // ============================================================================
-  
-  function shouldProcessNode(node) {
+  function isProcessable(node) {
     if (node.nodeType !== Node.TEXT_NODE || !node.textContent.trim()) return false;
 
-    // If excludeAttributes is non-empty, only process nodes that are not descendants
-    // of an element carrying one of those attributes.
-    if (CONFIG.excludeAttributes.length) {
-      let el = node.parentElement;
-      let insideExcluded = false;
-      while (el) {
-        if (CONFIG.excludeAttributes.some(attr => el.hasAttribute(attr))) {
-          insideExcluded = true;
-          break;
-        }
-        el = el.parentElement;
-      }
-      if (insideExcluded) return false;
+    for (let el = node.parentElement; el; el = el.parentElement) {
+      if (SKIP_TAGS.has(el.tagName.toLowerCase())) return false;
+      if (el.hasAttribute('data-vhp-glossary') || el.hasAttribute('data-vhp-glossary-skip')) return false;
+      if (el.hasAttribute('data-bs-toggle') || el.hasAttribute('data-bs-dismiss')) return false;
+      if (el.isContentEditable) return false;
+      const classes = el.classList;
+      if (SKIP_CLASSES.some(c => classes.contains(c))) return false;
     }
-
-    let parent = node.parentElement;
-    while (parent) {
-      // Check tag exclusions
-      if (CONFIG.excludeTags.includes(parent.tagName.toLowerCase())) return false;
-      
-      // Check attribute exclusions
-      if (CONFIG.excludeAttributes.some(attr => parent.hasAttribute(attr))) return false;
-      
-      // Check class exclusions
-      if (parent.classList.contains(CONFIG.highlightClass)) return false;
-      const classList = Array.from(parent.classList);
-      if (CONFIG.excludeClassSubstrings.some(substr => 
-        classList.some(cls => cls.toLowerCase().includes(substr))
-      )) return false;
-      
-      parent = parent.parentElement;
-    }
-    
     return true;
   }
-  
-  function walkTextNodes(node, callback) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      callback(node);
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      Array.from(node.childNodes).forEach(child => walkTextNodes(child, callback));
-    }
+
+  function collectTextNodes(root) {
+    const nodes = [];
+    (function walk(n) {
+      if (n.nodeType === Node.TEXT_NODE) { if (isProcessable(n)) nodes.push(n); }
+      else if (n.nodeType === Node.ELEMENT_NODE) n.childNodes.forEach(walk);
+    })(root);
+    return nodes;
   }
 
-  // ============================================================================
-  // HIGHLIGHTING
-  // ============================================================================
-  
+  // Matching and highlighting
+
   function findMatches(text, terms) {
     const matches = [];
-    const flags = CONFIG.caseSensitive ? 'g' : 'gi';
-    const boundary = CONFIG.matchWholeWords ? '\\b' : '';
-    
-    let totalAttempts = 0;
-    terms.forEach(term => {
-      [term.label, ...term.synonyms].forEach(label => {
-        totalAttempts++;
-        const pattern = `${boundary}${escapeRegex(label)}${boundary}`;
-        const regex = new RegExp(pattern, flags);
-        let match;
-        
-        while ((match = regex.exec(text)) !== null) {
-          log(`MATCH FOUND: "${label}" in text`);
-          matches.push({
-            start: match.index,
-            end: match.index + match[0].length,
-            text: match[0],
-            term
-          });
+    for (const term of terms) {
+      for (const label of [term.label, ...term.synonyms]) {
+        const regex = new RegExp(`\\b${escapeRegex(label)}\\b`, 'gi');
+        let m;
+        while ((m = regex.exec(text)) !== null) {
+          matches.push({ start: m.index, end: m.index + m[0].length, text: m[0], term });
         }
-      });
-    });
-    
-    if (matches.length === 0 && totalAttempts > 0) {
-      log(`No matches found after trying ${totalAttempts} patterns in text: "${text.substring(0, 100)}..."`);
+      }
     }
-    
-    // Sort and remove overlaps (keep first match)
     matches.sort((a, b) => a.start - b.start);
-    return matches.filter((match, i) => 
-      i === 0 || match.start >= matches[i - 1].end
-    );
+    return matches.filter((m, i) => i === 0 || m.start >= matches[i - 1].end);
   }
-  
-  function createHighlightSpan(match) {
+
+  function tooltipHtml(term) {
+    let html = `<strong>${escapeHtml(term.label)}</strong>`;
+    if (term.definition) html += `<br><small>${escapeHtml(term.definition)}</small>`;
+    if (term.synonyms.length) html += `<br><small>Synonyms: ${escapeHtml(term.synonyms.join(', '))}</small>`;
+    html += `<div class="mt-1"><a href="${escapeHtml(glossaryUrl(term.uri))}" target="_blank" rel="noopener noreferrer" class="link-light text-decoration-underline"><i class="bi bi-box-arrow-up-right"></i> View full definition</a></div>`;
+    return html;
+  }
+
+  function createSpan(match) {
     const span = document.createElement('span');
-    // Apply both base class and type-specific class
-    span.classList.add(CONFIG.highlightClass);
-    span.classList.add(`${CONFIG.highlightClass}-${CONFIG.highlightType}`);
     span.textContent = match.text;
+    span.setAttribute('data-vhp-glossary', '');
+    span.setAttribute('role', 'term');
+    span.classList.add('d-inline', 'p-0', 'rounded');
+
     span.setAttribute('data-bs-toggle', 'tooltip');
     span.setAttribute('data-bs-html', 'true');
-    // Respect CONFIG.tooltipPlacement: support 'top' or 'bottom-left' (renders as 'bottom' with offset)
-    const placementAttr = (CONFIG.tooltipPlacement === 'bottom-left') ? 'bottom' : (CONFIG.tooltipPlacement || 'top');
-    span.setAttribute('data-bs-placement', placementAttr);
-    span.setAttribute('title', createTooltipContent(match.term));
+    span.setAttribute('data-bs-placement', 'bottom');
+    span.setAttribute('title', tooltipHtml(match.term));
     span.setAttribute('data-vhp-uri', match.term.uri);
-
-    log(`Created highlight span with classes: ${span.className} for term: ${match.term.label}`);
     return span;
   }
-  
+
   function highlightNode(node, terms) {
-    if (!shouldProcessNode(node)) {
-      log(`Skipping node: ${node.textContent.substring(0, 50)}...`);
-      return;
-    }
-    
     const text = node.textContent;
-    log(`Processing node with text: "${text.substring(0, 100)}..."`);
     const matches = findMatches(text, terms);
     if (!matches.length) return;
-    
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-    
-    matches.forEach(match => {
-      if (match.start > lastIndex) {
-        fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.start)));
-      }
-      fragment.appendChild(createHighlightSpan(match));
-      lastIndex = match.end;
-    });
-    
-    if (lastIndex < text.length) {
-      fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    for (const m of matches) {
+      if (m.start > last) frag.appendChild(document.createTextNode(text.substring(last, m.start)));
+      frag.appendChild(createSpan(m));
+      last = m.end;
     }
-    
-    node.parentNode.replaceChild(fragment, node);
+    if (last < text.length) frag.appendChild(document.createTextNode(text.substring(last)));
+    node.parentNode.replaceChild(frag, node);
   }
 
-  // ============================================================================
-  // TOOLTIP MANAGEMENT
-  // ============================================================================
-  
+  // Tooltips
+
   function initTooltips() {
     if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) return;
-    
-    const elements = document.querySelectorAll(`[data-bs-toggle="tooltip"]`);
-    log(`Initializing ${elements.length} tooltips`);
-    
-    elements.forEach(el => {
-      // Validate that the element has a valid title attribute
+
+    let activeTooltip = null;
+
+    document.querySelectorAll('[data-vhp-glossary][data-bs-toggle="tooltip"]').forEach(el => {
       const title = el.getAttribute('title');
-      if (!title || title.trim() === '' || title === 'null' || title === 'undefined') {
-        log(`Skipping tooltip for element without valid title:`, el);
-        return;
-      }
-      
-      // Configure popper offset to add 7px distance below the tooltip when using bottom-left placement.
-      const useBottomLeft = CONFIG.tooltipPlacement === 'bottom-left';
-      const skidding = useBottomLeft ? -10 : 0; // negative skidding moves tooltip to the left
-      const distance = useBottomLeft ? 7 : 0; // vertical spacing in pixels (7px when bottom-left)
+      if (!title || !title.trim() || title === 'null' || title === 'undefined') return;
 
-      const tooltip = new bootstrap.Tooltip(el, {
-        trigger: 'manual',
-        delay: { show: CONFIG.tooltipShowDelay, hide: 0 },
-        container: 'body',
-        placement: (useBottomLeft ? 'bottom' : (CONFIG.tooltipPlacement || 'top')),
+      const tip = new bootstrap.Tooltip(el, {
+        trigger:     'click',
+        container:   'body',
+        placement:   'bottom',
         customClass: 'vhp-glossary-tooltip-fixed',
-        popperConfig: (defaultPopper) => ({
-          ...defaultPopper,
-          modifiers: [
-            ...(defaultPopper && defaultPopper.modifiers ? defaultPopper.modifiers : []),
-            { name: 'offset', options: { offset: [skidding, distance] } },
-            { name: 'preventOverflow', options: { padding: 5 } }
-          ]
-        })
       });
 
-      const hideWithAnimation = (tooltipInstance) => {
-        const tooltipEl = document.querySelector('.tooltip.show');
-        if (tooltipEl) {
-          tooltipEl.classList.add('hiding');
-          tooltipEl.classList.remove('show');
-          // Wait for animation to complete before actually hiding
-          setTimeout(() => {
-            tooltipInstance.hide();
-            tooltipEl.classList.remove('hiding');
-          }, 200); // Match animation duration
-        } else {
-          tooltipInstance.hide();
-        }
-      };
-      
-      const show = () => {
-        if (CONFIG.singleTooltipOnly && tooltipManager.activeTooltip) {
-          hideWithAnimation(tooltipManager.activeTooltip);
-        }
-        clearTimeout(tooltipManager.hideTimer);
-        tooltipManager.activeTooltip = tooltip;
-        tooltip.show();
-      };
-      
-      const scheduleHide = () => {
-        clearTimeout(tooltipManager.hideTimer);
-        tooltipManager.hideTimer = setTimeout(() => {
-          hideWithAnimation(tooltip);
-          if (tooltipManager.activeTooltip === tooltip) {
-            tooltipManager.activeTooltip = null;
-          }
-        }, CONFIG.tooltipHideDelay);
-      };
-      
-      el.addEventListener('mouseenter', show);
-      el.addEventListener('mouseleave', scheduleHide);
-      
-      el.addEventListener('shown.bs.tooltip', () => {
-        const tooltipEl = document.querySelector('.tooltip.show');
-        if (tooltipEl) {
-          tooltipEl.onmouseenter = () => clearTimeout(tooltipManager.hideTimer);
-          tooltipEl.onmouseleave = scheduleHide;
-        }
+      el.addEventListener('show.bs.tooltip', () => {
+        if (activeTooltip && activeTooltip !== tip) activeTooltip.hide();
+        activeTooltip = tip;
       });
+
+      el.addEventListener('hidden.bs.tooltip', () => {
+        if (activeTooltip === tip) activeTooltip = null;
+      });
+    });
+
+    document.addEventListener('click', e => {
+      if (!activeTooltip) return;
+      const span = activeTooltip._element;
+      const popup = activeTooltip.tip;
+      if (span?.contains(e.target) || popup?.contains(e.target)) return;
+      activeTooltip.hide();
     });
   }
 
-  // ============================================================================
-  // MAIN PROCESS
-  // ============================================================================
-  
-  function processDocument() {
-    if (isProcessing || !glossaryTerms.length) return;
-    
-    isProcessing = true;
-    log('Processing document for glossary terms...');
-    
-    const textNodes = [];
-    walkTextNodes(document.body, node => {
-      if (shouldProcessNode(node)) textNodes.push(node);
-    });
-    
-    log(`Found ${textNodes.length} text nodes to process`);
-    
-    textNodes.forEach(node => {
-      try {
-        highlightNode(node, glossaryTerms);
-      } catch (error) {
-        console.error('[VHP Glossary] Error highlighting node:', error);
-      }
-    });
-    
-    initTooltips();
-    isProcessing = false;
-    log('Document processing complete');
-  }
-  
-  async function fetchAndProcess() {
-    try {
-      log(`Fetching glossary from ${CONFIG.glossaryUrl}`);
-      const response = await fetch(CONFIG.glossaryUrl);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const text = await response.text();
-      glossaryTerms = parseOWLGlossary(text);
-      
-      if (glossaryTerms.length) {
-        processDocument();
+  //  Boot
+
+  let glossaryActive = false;
+
+  function setGlossaryVisible(visible) {
+    glossaryActive = visible;
+    localStorage.setItem('vhp-glossary-active', visible ? '1' : '0');
+    document.querySelectorAll('[data-vhp-glossary]').forEach(span => {
+      span.classList.toggle('bg-vhplight-blue', visible);
+      span.classList.toggle('bg-opacity-50', visible);
+      if (visible) {
+        span.setAttribute('data-bs-toggle', 'tooltip');
       } else {
-        console.warn('[VHP Glossary] No terms found in glossary file');
+        const tip = bootstrap.Tooltip.getInstance(span);
+        if (tip) tip.dispose();
+        span.removeAttribute('data-bs-toggle');
       }
-    } catch (error) {
-      console.error('[VHP Glossary] Fetch error:', error);
-    }
-  }
-  
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
-  
-  function initialize() {
-    injectCustomStyles();
-    fetchAndProcess();
-  }
-  
-  if (document.readyState === 'loading') {
-    if (CONFIG.loadLast) {
-      setTimeout(initialize, 500);
-    }
-    document.addEventListener('DOMContentLoaded', initialize);
-  } else {
-    initialize();
+    });
+    const toggle = document.getElementById('glossary-toggle');
+    if (toggle) toggle.checked = visible;
+    const toggleMobile = document.getElementById('glossary-toggle-mobile');
+    if (toggleMobile) toggleMobile.checked = visible;
+    if (visible) initTooltips();
   }
 
+  function showHint(toggle) {
+    if (localStorage.getItem('vhp-glossary-hint-seen')) return;
+    const wrapper = toggle.closest('.form-check') || toggle;
+    const hint = new bootstrap.Popover(wrapper, {
+      content:   'Toggle to highlight glossary terms on the page',
+      placement: 'bottom',
+      trigger:   'manual',
+      offset:    [0, 10],
+      container: wrapper.closest('.navbar') || 'body',
+    });
+    hint.show();
+    localStorage.setItem('vhp-glossary-hint-seen', '1');
+    const dismiss = () => { hint.dispose(); toggle.removeEventListener('change', dismiss); };
+    toggle.addEventListener('change', dismiss);
+    setTimeout(dismiss, 4000);
+  }
+
+  async function run() {
+    try {
+      const resp = await fetch(GLOSSARY_OWL_URL);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      const terms = parseGlossary(await resp.text());
+      if (!terms.length) { return; }
+
+      const nodes = collectTextNodes(document.body);
+      for (const node of nodes) {
+        try { highlightNode(node, terms); }
+        catch (e) { return }
+      }
+
+      const savedState = localStorage.getItem('vhp-glossary-active') === '1';
+      setGlossaryVisible(savedState);
+
+      const toggle = document.getElementById('glossary-toggle');
+      if (toggle) {
+        toggle.addEventListener('change', () => {
+          setGlossaryVisible(toggle.checked);
+        });
+        showHint(toggle);
+      }
+    } catch (e) {
+      return;
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(run, 500));
+  } else {
+    run();
+  }
 })();

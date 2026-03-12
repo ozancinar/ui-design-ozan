@@ -106,7 +106,12 @@
 
   <!-- Desktop buttons (hidden on mobile) -->
   <div class="d-none d-lg-flex align-items-center gap-3">
-    <!-- Tools Button Group -->
+
+    <!-- Glossary Toggle Switch -->
+    <div class="form-check form-switch mb-0 text-nowrap" data-vhp-glossary-skip>
+      <input class="form-check-input" type="checkbox" role="switch" id="glossary-toggle">
+      <label class="form-check-label small" for="glossary-toggle">Glossary</label>
+    </div>
 
      <!-- Case Studies Button Group -->
     <div class="btn-group" role="group">
@@ -200,6 +205,7 @@
 
     <!-- Data Button -->
     <button class="btn btn-vhpteal text-nowrap" style="min-width: 120px;" onclick="location.href='/data'" type="button">Data</button>
+
   </div>
 </nav>
 
@@ -323,6 +329,15 @@
 
       <!-- Data button -->
       <button class="btn btn-vhpteal mt-2" onclick="location.href='/data'" data-bs-dismiss="offcanvas">Data</button>
+
+      <!-- Glossary Toggle Switch (mobile) -->
+      <div class="form-check form-switch mt-2" data-vhp-glossary-skip>
+        <input class="form-check-input" type="checkbox" role="switch" id="glossary-toggle-mobile"
+               onchange="document.getElementById('glossary-toggle').checked = this.checked;
+                         document.getElementById('glossary-toggle').dispatchEvent(new Event('change'));
+                         this.closest('.offcanvas') && bootstrap.Offcanvas.getInstance(this.closest('.offcanvas'))?.hide();">
+        <label class="form-check-label" for="glossary-toggle-mobile">Glossary</label>
+      </div>
     </div>
   </div>
 </div>

@@ -1,19 +1,41 @@
 /**
  * Process Flow Page - Dynamic loading of Process Flow Steps
- * Uses TTLParser to load terms with dct:relation from glossary
+ * Fetches the glossary OWL and extracts terms that have a dct:relation.
  */
 
 (function() {
   'use strict';
 
-  const CONFIG = {
-    glossaryUrl: 'https://raw.githubusercontent.com/VHP4Safety/glossary/refs/heads/main/glossary.owl',
-    glossaryWebsiteUrl: 'https://glossary.vhp4safety.nl/',
-    // Map relation URIs to accordion IDs
-    stepMapping: {
-      // Add specific mappings if needed, otherwise we'll use a generic approach
+  const GLOSSARY_URL = 'https://raw.githubusercontent.com/VHP4Safety/glossary/refs/heads/main/glossary.owl';
+  const GLOSSARY_SITE = 'https://glossary.vhp4safety.nl/';
+
+  // ── Parsing ────────────────────────────────────────────────────────────────
+
+  function parseTermsWithRelations(turtleText) {
+    const rx = /<([^>]+)>\s*\n([\s\S]*?)(?=\n<|$)/g;
+    const prop = (block, p) => { const m = block.match(p); return m ? m[1].trim() : ''; };
+    const terms = [];
+    let m;
+
+    while ((m = rx.exec(turtleText)) !== null) {
+      const [, uri, block] = m;
+      if (!block.includes('rdf:type') || !block.includes('owl:Class')) continue;
+
+      const label = prop(block, /rdfs:label\s+"([^"]+)"(?:@[a-zA-Z-]+)?/);
+      if (!label || label === 'nan' || label.length < 2) continue;
+
+      const relMatch = block.match(/dct:relation\s+<([^>]+)>/);
+      if (!relMatch) continue; // only keep terms with a relation
+
+      terms.push({
+        uri,
+        label,
+        definition: prop(block, /dc:description\s+"([^"]+)"(?:@[a-zA-Z-]+)?/),
+        relation: relMatch[1].trim(),
+      });
     }
-  };
+    return terms;
+  }
 
   /**
    * Extract the VHP ID from a URI
@@ -66,8 +88,9 @@
     container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
 
     try {
-      // Fetch and parse terms with relations
-      const terms = await TTLParser.fetchTermsWithRelations(CONFIG.glossaryUrl);
+      const resp = await fetch(GLOSSARY_URL);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const terms = parseTermsWithRelations(await resp.text());
       
       if (terms.length === 0) {
         container.innerHTML = '<p class="text-muted">No process flow steps found.</p>';

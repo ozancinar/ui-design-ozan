@@ -18,6 +18,7 @@ from biostudies.search import BioStudiesExtractor
 from zenodo.search import ZenodoExtractor
 
 ################################################################################
+CACHE_TIMEOUT = 60*60*24*5 # 5 days
 ### Configuration for BioStudies Integration
 # Change these variables to switch between collections
 BIOSTUDIES_COLLECTION = "VHP4Safety"  # Replace with "EU-ToxRisk" to test
@@ -37,7 +38,6 @@ STAGE_EXPLANATIONS = {
     "Generic": "Generic category.",
     "Other": "Other or unknown category.",
 }
-
 METHODS_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
 # TOOLS and SERVICES are synonymous
 SERVICES_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
@@ -91,7 +91,6 @@ class RegexConverter(BaseConverter):
         super(RegexConverter, self).__init__(url_map)
         self.regex = items[0]
 
-CACHE_TIMEOUT = 60*30 # half an hour
 cache_config = {
     "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
     "CACHE_DEFAULT_TIMEOUT": CACHE_TIMEOUT,  # 60 min chaching

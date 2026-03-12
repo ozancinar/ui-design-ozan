@@ -86,57 +86,85 @@ const fuse = new Fuse(pages, {
   ignoreLocation: true //To match anywhere in the title
 });
 
-const searchInput = document.getElementById("searchInput");
-const resultsContainer = document.getElementById("results");
-const searchBtn = document.getElementById("searchBtn");
+const pairs = [
+  { input: document.getElementById("searchInput"),        container: document.getElementById("results") },
+  { input: document.getElementById("searchInputMobile"),  container: document.getElementById("resultsMobile") },
+].filter(p => p.input && p.container); // optional: avoid nulls if one doesn't exist on a page
 
-//Step 3: render dropdown results and highlight matching text
-function renderResults(results, query) {
+function renderResults(container, results, query) {
   if (!results.length) {
-    resultsContainer.innerHTML = `<li class="list-group-item">No results found for "${query}"</li>`;
+    container.innerHTML = `<li class="list-group-item">No results found for "${escapeHtml(query)}"</li>`;
     return;
   }
 
-  resultsContainer.innerHTML = results
+  // Escape query for regex, otherwise special chars break highlighting
+  const safeQuery = escapeRegExp(query);
+  const regex = new RegExp(`(${safeQuery})`, "gi");
+
+  container.innerHTML = results
     .map(r => {
-      const regex = new RegExp(`(${query})`, "gi");
-      const highlightedTitle = r.item.title.replace(regex, `<mark>$1</mark>`);
-      return `<li class="list-group-item">
-                <a href="${r.item.url}" style="text-decoration:none; color:inherit;">
+      const title = r.item.title ?? "";
+      const url = r.item.url ?? "#";
+
+      const highlightedTitle = escapeHtml(title).replace(regex, `<mark>$1</mark>`);
+
+      return `<a class="list-group-item" href="${r.item.url}" style="text-decoration:none; color:inherit;">
                   ${highlightedTitle}
-                </a>
-              </li>`;
+                </a>`;
     })
     .join("");
 }
 
-//Step 4: enable live search (dynamically seeing results when user is typing)
-searchInput.addEventListener("input", () => {
-  const query = searchInput.value.trim();
-  if (!query) {
-    resultsContainer.innerHTML = "";
-    return;
-  }
-  const results = fuse.search(query);
-  renderResults(results, query);
+// Bind each input to its own container
+pairs.forEach(({ input, container }) => {
+  input.addEventListener("input", () => {
+    const query = input.value.trim();
+
+    if (!query) {
+      container.innerHTML = "";
+      return;
+    }
+
+    const results = fuse.search(query); // assumes fuse is defined
+    renderResults(container, results, query);
+  });
 });
+
+
+// ---------- helpers ----------
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Minimal escaping to avoid HTML injection in titles / query
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(str) {
+  // For href etc. Very simple safe-escape.
+  return escapeHtml(str);
+}
+
+//Step 4: enable live search (dynamically seeing results when user is typing)
+
 
 //Step 5: redirect to first match when clicking search button
-searchBtn.addEventListener("click", () => {
-  const query = searchInput.value.trim();
-  if (!query) return;
+// searchBtn.addEventListener("click", () => {
+//   const query = searchInput.value.trim();
+//   if (!query) return;
 
-  const results = fuse.search(query);
-  if (results.length > 0) {
-    window.location.href = results[0].item.url;
-  } else {
-    alert(`No results found for "${query}"`);
-  }
-});
+//   const results = fuse.search(query);
+//   if (results.length > 0) {
+//     window.location.href = results[0].item.url;
+//   } else {
+//     alert(`No results found for "${query}"`);
+//   }
+// });
 
-//Additional step to remove dropdown if user clicks outside search bar
-document.addEventListener("click", (e) => {
-  if (!e.target.closest(".d-flex")) {
-    resultsContainer.innerHTML = "";
-  }
-});
+

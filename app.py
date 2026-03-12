@@ -34,6 +34,10 @@ STAGE_EXPLANATIONS = {
     "Other": "Other or unknown category.",
 }
 
+METHODS_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
+# TOOLS and SERVICES are synonymous
+SERVICES_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
+
 REG_QUESTIONS = {
     "reg_q_1a": {
         "label": "Kidney Case Study (a)",
@@ -87,18 +91,31 @@ class RegexConverter(BaseConverter):
 app = Flask(__name__)
 
 
+def get_json_dict(url:str, timeout:int=5) -> dict:
+    """Fetch xxxx_index.json from the cloud repo and return as a dictionary.
+    Return an empty dict on any error to avoid breaking pages that depend on it.
+    """
+    try:
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code != 200:
+            return {}
+        data = resp.json()
+        if isinstance(data, dict):
+            return data
+        else:
+            return {}
+    except Exception:
+        return {}
+    
+
 # Provide methods list to all templates for the Methods dropdown in the navbar
 @app.context_processor
 def inject_methods_menu():
     """Fetch methods_index.json and expose a simple list of {id, title} to templates.
     Return an empty list on any error to avoid breaking pages.
     """
-    try:
-        url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
-        resp = requests.get(url, timeout=5)
-        if resp.status_code != 200:
-            return {"methods_menu": []}
-        data = resp.json()
+    data = get_json_dict(METHODS_URL)
+    if data:
         items = []
         for key, val in data.items() if isinstance(data, dict) else []:
             title = (
@@ -111,24 +128,37 @@ def inject_methods_menu():
         # sort by title
         items = sorted(items, key=lambda x: x["title"].lower())
         return {"methods_menu": items}
-    except Exception:
+    else:
         return {"methods_menu": []}
+
+
+@app.context_processor
+def inject_tools_menu():
+    """Fetch methods_index.json and expose a simple list of {id, title} to templates.
+    Return an empty list on any error to avoid breaking pages.
+    """
+    data = get_json_dict(SERVICES_URL)
+    if data:
+        items = []
+        for key, val in data.items() if isinstance(data, dict) else []:
+            title = (
+                val.get("service")
+                or key
+            )
+            items.append({"id": key, "title": title})
+        # sort by title
+        items = sorted(items, key=lambda x: x["title"].lower())
+        return {"tools_menu": items}
+    else:
+        return {"tools_menu": []}    
 
 
 ################################################################################
 ### The landing page
 @app.route("/")
 def home():
-    # get number of tools:
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching service list: {response.status_code}", 503
-
     try:
-        tools = (
-            response.json()
+        tools = (get_json_dict(SERVICES_URL)
         )  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
     except Exception as e:
@@ -332,115 +362,11 @@ def models():
 ################################################################################
 ### Pages under 'Tools'
 
-# Page to list all the tools based on the list of tools on the cloud repo.
-
-# Below is the original way of creating the service_list page which runs slow.
-# Further down below it, I try to implement a way to get the combined json file
-# rather than getting individual service information one-by-one.
-""" 
-@app.route("/tools")
-def tools():
-    # Github API link to receive the list of the tools on the cloud repo:
-    url = f"https://api.github.com/repos/VHP4Safety/cloud/contents/docs/service"
-    response = requests.get(url)
-
-    # Checking if the request was successful (status code 200).
-    if response.status_code == 200:
-        # Extracting the list of files.
-        tools_content = response.json()
-
-        # Separating .json and .md files.
-        json_files = {
-            file["name"]: file
-            for file in tools_content
-            if file["type"] == "file" and file["name"].endswith(".json")
-        }
-        md_files = {
-            file["name"]: file
-            for file in tools_content
-            if file["type"] == "file" and file["name"].endswith(".md")
-        }
-        png_files = {
-            file["name"]: file
-            for file in tools_content
-            if file["type"] == "file" and file["name"].endswith(".png")
-        }
-
-        # Creating an empty list to store the results.
-        tools = []
-
-        # Fetching the .json files.
-        for json_file_name, json_file in json_files.items():
-            # Skipping the template.json file.
-            if json_file_name == "template.json":
-                continue
-
-            json_url = json_file[
-                "download_url"
-            ]  # Using the download URL from the API response.
-            json_response = requests.get(json_url)
-
-            if json_response.status_code == 200:
-                json_data = json_response.json()
-
-                # Extracting the 'tool' field from the json file.
-                tool_name = json_data.get("service")
-                description_string = json_data.get("description")
-
-                if tool_name:
-                    # Replacing the .json extension with the .md to get the corresponding .md file.
-                    md_file_name = json_file_name.replace(".json", ".md")
-                    html_name = json_file_name.replace(".json", ".html")
-                    url = "https://cloud.vhp4safety.nl/service/" + html_name
-
-                    if md_file_name in md_files:
-                        md_file_url = f"https://raw.githubusercontent.com/VHP4Safety/cloud/main/docs/service/{md_file_name}"
-                    else:
-                        md_file_url = "md file not found"
-                    png_file_name = md_file_name.replace(".md", ".png")
-
-                    if png_file_name in png_files:
-                        png_file_url = f"https://raw.githubusercontent.com/VHP4Safety/cloud/main/docs/service/{png_file_name}"
-                        tools.append(
-                            {
-                                "service": tool_name,
-                                "url": url,
-                                "meta_data": md_file_url,
-                                "description": description_string,
-                                "png": png_file_url,
-                            }
-                        )
-                    else:
-                        tools.append(
-                            {
-                                "service": tool_name,
-                                "url": url,
-                                "meta_data": md_file_url,
-                                "description": description_string,
-                                "png": "../../static/images/logo.png",
-                            }
-                        )
-
-        # Passing the tools data to the template after processing all JSON files.
-        return render_template("tools/tools.html", tools=tools)
-    else:
-        return f"Error fetching files: {response.status_code}"
-"""
-
-
 ### Here begins the updated version for creating the tool list page.
 @app.route("/tools")
 def tools():
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching service list: {response.status_code}", 503
-
     try:
-        tools = (
-            response.json()
-        )  # Geting the service_list.json in the dictionary format.
+        tools = get_json_dict(SERVICES_URL)  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
 
         # Mapping the URLs with glossary IDs to their text values.
@@ -664,14 +590,8 @@ def method_page(methodid):
     """Render a single method page using templates/methods/method.html
     Method details are taken from methods_index.json (keyed by method id).
     """
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching methods list: {response.status_code}", 503
-
     try:
-        methods = response.json()
+        methods = get_json_dict(METHODS_URL)
         # methods_index.json is a dict keyed by method id
         if methodid not in methods:
             abort(404)
@@ -710,14 +630,8 @@ def method_page(methodid):
 @app.route("/tools/<toolname>")
 def tool_page(toolname):
     # get the tools metadata:
-    url = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/service_index.json"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return f"Error fetching service list: {response.status_code}", 503
-
     try:
-        tools = response.json()
+        tools = get_json_dict(SERVICES_URL)
         tools = dict(tools)
         # Geting the service_list.json in the dictionary format.
         # Converting the dictionary to a list object.

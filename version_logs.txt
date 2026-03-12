@@ -1,5 +1,5 @@
 
-Version 0.7-4 (2026-03-09)
+Version 0.7-5 (2026-03-12)
 --------------------------------------------------------------------------------
 - Switched to the Swarm cluster architecture.
 - Creating urls for the individual case study pages.

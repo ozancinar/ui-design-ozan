@@ -35,8 +35,6 @@ function normalize(raw, url_prefix) {
 }
 
 
-let tools = [];
-let methods = [];
 async function waitForGlobal(name, { timeout = 5000, interval = 50 } = {}) {
   const start = Date.now();
 
@@ -53,8 +51,12 @@ let pages = [];
   try {
     const toolsMenu = await waitForGlobal("TOOLS_MENU", { timeout: 8000 });
     const methodsMenu = await waitForGlobal("METHODS_MENU", {timeout:8000});
+    const dataMenu = await waitForGlobal("DATA_MENU", {timeout:8000});
+
     tools = normalize(toolsMenu, "/tools/");
     methods = normalize(methodsMenu, "/methods/")
+    data = normalize(dataMenu, "")
+
     // collate search pages
     const homeEntry = [  
        { title: "Home", url: "/" }
@@ -80,7 +82,7 @@ let pages = [];
       { title: "Data Overview", url: "/data" },
     ];
 
-    pages = [...homeEntry,...caseStudies,...toolsHome,...tools,...methodsHome,...methods,...dataEntry]
+    pages = [...homeEntry,...caseStudies,...toolsHome,...tools,...methodsHome,...methods,...dataEntry,...data]
 
     
 

@@ -5,7 +5,8 @@ import re
 
 import requests
 import urllib.parse
-from flask import Blueprint, Flask, abort, jsonify, render_template, request, send_file
+from flask import Flask, abort, jsonify, render_template, request
+from flask_caching import Cache
 from jinja2 import TemplateNotFound
 from werkzeug.routing import BaseConverter
 
@@ -21,6 +22,9 @@ from zenodo.search import ZenodoExtractor
 # Change these variables to switch between collections
 BIOSTUDIES_COLLECTION = "VHP4Safety"  # Replace with "EU-ToxRisk" to test
 BIOSTUDIES_COLLECTION_NAME = "VHP4Safety"  # Display name for the page
+ZENODO_COMMUNITY = "vhp4safety"  # zenodo community
+ZENODO_RECORD_TYPE = "dataset"  # only show datasets
+
 CASESTUDIES = ["thyroid", "kidney", "parkinson"]  # List of valid case studies
 
 ###Shared explanation dictionaries for filters (used in both tools and data page)
@@ -87,11 +91,18 @@ class RegexConverter(BaseConverter):
         super(RegexConverter, self).__init__(url_map)
         self.regex = items[0]
 
-
+CACHE_TIMEOUT = 60*30 # half an hour
+cache_config = {
+    "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
+    "CACHE_DEFAULT_TIMEOUT": CACHE_TIMEOUT,  # 60 min chaching
+}
 app = Flask(__name__)
+app.config.from_mapping(cache_config)
+cache = Cache(app)
 
 
-def get_json_dict(url:str, timeout:int=5) -> dict:
+@cache.memoize(timeout=CACHE_TIMEOUT)
+def get_json_dict(url: str, timeout: int = 5) -> dict:
     """Fetch xxxx_index.json from the cloud repo and return as a dictionary.
     Return an empty dict on any error to avoid breaking pages that depend on it.
     """
@@ -106,7 +117,49 @@ def get_json_dict(url:str, timeout:int=5) -> dict:
             return {}
     except Exception:
         return {}
-    
+
+
+@cache.memoize(timeout=CACHE_TIMEOUT)
+def get_repository_data(
+    search_query: str, page: int = 1, page_size: int = 18, filters: list | None = None
+) -> tuple[dict, dict]:
+    """
+    Extract data from respositories
+    """
+    # Initialize extractor for BIOSTUDIES
+    bs_extractor = BioStudiesExtractor(collection=BIOSTUDIES_COLLECTION)
+
+    # Fetch data based on search query or list all
+    if search_query:
+        bs_results = bs_extractor.search_studies(
+            search_query, page=page, page_size=page_size, filters=filters
+        )
+    else:
+        bs_results = bs_extractor.list_studies(
+            page=page, page_size=page_size, include_urls=True, filters=filters
+        )
+
+    # Initialize extractor for Zenodo
+    zen_extractor = ZenodoExtractor(
+        community=ZENODO_COMMUNITY, record_type=ZENODO_RECORD_TYPE
+    )
+
+    if not filters:
+        # We currently do no filter Zenodo datasets.
+        if search_query:
+            zen_result = zen_extractor.search_records(
+                search_query, page=page, size=page_size
+            )
+        else:
+            # load metadata needed for is_rocrate filtering in template
+            zen_result = zen_extractor.list_records(
+                page=page, size=page_size, load_metadata=True
+            )
+    else:
+        zen_result = {"hits": [], "total": 0, "error": None}
+
+    return bs_results, zen_result
+
 
 # Provide methods list to all templates for the Methods dropdown in the navbar
 @app.context_processor
@@ -141,16 +194,35 @@ def inject_tools_menu():
     if data:
         items = []
         for key, val in data.items() if isinstance(data, dict) else []:
-            title = (
-                val.get("service")
-                or key
-            )
+            title = val.get("service") or key
             items.append({"id": key, "title": title})
         # sort by title
         items = sorted(items, key=lambda x: x["title"].lower())
         return {"tools_menu": items}
     else:
-        return {"tools_menu": []}    
+        return {"tools_menu": []}
+
+
+@app.context_processor
+def inject_data_menu():
+    """Fetch methods_index.json and expose a simple list of {id, title} to templates.
+    Return an empty list on any error to avoid breaking pages.
+    """
+    bs_results, zen_results = get_repository_data(search_query="")
+    hits:list = bs_results.get("hits", [])
+    hits.extend(zen_results.get("hits", []))
+    if hits:
+        items = []
+        for hit in hits:
+            title = hit.get("title")
+            id = hit.get("accession", "") or hit.get("doi_url","") or hit.get("id","")
+            url = hit.get("url","") or hit.get("doi_url")
+            items.append({"id": id, "title": title, "url":url})
+            # sort by title
+            items = sorted(items, key=lambda x: x["title"].lower())
+        return {"data_menu": items}
+    else:
+        return {"data_menu": []}
 
 
 ################################################################################
@@ -158,17 +230,16 @@ def inject_tools_menu():
 @app.route("/")
 def home():
     try:
-        tools = (get_json_dict(SERVICES_URL)
+        tools = get_json_dict(
+            SERVICES_URL
         )  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
     except Exception as e:
         return f"Error processing service data: {e}", 500
     num_tools = len(tools)
     num_case_studies = len(CASESTUDIES)
-    num_datasets = BioStudiesExtractor(collection=BIOSTUDIES_COLLECTION).list_studies(
-        page=1, page_size=1
-    )["total"]
-    num_datasets += ZenodoExtractor().list_records(page=1, size=1)["total"]
+    bs_res, zen_res = get_repository_data(search_query="")
+    num_datasets = bs_res["total"] + zen_res["total"]
     return render_template(
         "home.html",
         num_tools=num_tools,
@@ -202,35 +273,9 @@ def data():
     if filter_flow_step:
         filters.append(("flow_step", filter_flow_step))
 
-    # Initialize extractor for BIOSTUDIES
-    bs_extractor = BioStudiesExtractor(collection=BIOSTUDIES_COLLECTION)
-
-    # Fetch data based on search query or list all
-    if search_query:
-        bs_results = bs_extractor.search_studies(
-            search_query, page=page, page_size=page_size, filter=filters
-        )
-    else:
-        bs_results = bs_extractor.list_studies(
-            page=page, page_size=page_size, include_urls=True, filter=filters
-        )
-
-    # Initialize extractor for Zenodo
-    zen_extractor = ZenodoExtractor()
-
-    if not filters:
-        # We currently do no filter Zenodo datasets.
-        if search_query:
-            zen_result = zen_extractor.search_records(
-                search_query, page=page, size=page_size
-            )
-        else:
-            # load metadata needed for is_rocrate filtering in template
-            zen_result = zen_extractor.list_records(
-                page=page, size=page_size, load_metadata=True
-            )
-    else:
-        zen_result = {"hits": [], "total": 0, "error": None}
+    bs_results, zen_results = get_repository_data(
+        search_query, page, page_size, filters=filters
+    )
 
     # Extract studies and metadata
     studies = bs_results.get("hits", [])
@@ -238,9 +283,9 @@ def data():
     bs_error: str | None = bs_results.get("error", None)
 
     # Extract datasets and metadata from Zenodo
-    datasets = zen_result.get("hits", [])
-    zen_total = zen_result.get("total", 0)
-    zen_error: str | None = zen_result.get("error", None)
+    datasets = zen_results.get("hits", [])
+    zen_total = zen_results.get("total", 0)
+    zen_error: str | None = zen_results.get("error", None)
 
     # combine totals for pagination
     total = bs_total + zen_total
@@ -312,11 +357,11 @@ def models():
     # Fetch data based on search query or list all
     if search_query:
         results = extractor.search_studies(
-            search_query, page=page, page_size=page_size, filter=filters
+            search_query, page=page, page_size=page_size, filters=filters
         )
     else:
         results = extractor.list_studies(
-            page=page, page_size=page_size, include_urls=True, filter=filters
+            page=page, page_size=page_size, include_urls=True, filters=filters
         )
 
     # Extract studies and metadata
@@ -362,11 +407,14 @@ def models():
 ################################################################################
 ### Pages under 'Tools'
 
+
 ### Here begins the updated version for creating the tool list page.
 @app.route("/tools")
 def tools():
     try:
-        tools = get_json_dict(SERVICES_URL)  # Geting the service_list.json in the dictionary format.
+        tools = get_json_dict(
+            SERVICES_URL
+        )  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
 
         # Mapping the URLs with glossary IDs to their text values.

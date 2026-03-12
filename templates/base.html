@@ -334,6 +334,8 @@
       window.TOOLS_MENU = Array.isArray(window.TOOLS_MENU) ? window.TOOLS_MENU : [];
       window.METHODS_MENU = (function(){ try { return {{ methods_menu | tojson | safe }}; } catch(e) { return []; } })();
       window.METHODS_MENU = Array.isArray(window.METHODS_MENU) ? window.METHODS_MENU : [];
+      window.DATA_MENU = (function(){ try { return {{ data_menu | tojson | safe }}; } catch(e) { return []; } })();
+      window.DATA_MENU = Array.isArray(window.METHODS_MENU) ? window.DATA_MENU : [];
     </script>
 
   </body>

@@ -59,19 +59,19 @@ let pages = [];
 
     // collate search pages
     const homeEntry = [  
-       { title: "Home", url: "/" }
+       //{ title: "Home", url: "/" }
     ]
 
     const toolsHome = [
-      { title: "Tools Overview", url: "/tools" },
+      //{ title: "Tools Overview", url: "/tools" },
     ]
     const methodsHome = [
-      {title: "Methods Overview", url: "/methods"}
+      //{title: "Methods Overview", url: "/methods"}
     ]
 
     const caseStudies = [
       // Case Studies
-      { title: "Case Studies", url: "/casestudies" },
+      //{ title: "Case Studies", url: "/casestudies" },
       { title: "Thyroid Case Study", url: "/casestudies/thyroid" },
       { title: "Parkinson Case Study", url: "/casestudies/parkinson" },
       { title: "Kidney Case Study", url: "/casestudies/kidney" },
@@ -79,7 +79,7 @@ let pages = [];
 
       // Data & Home
     const dataEntry=[
-      { title: "Data Overview", url: "/data" },
+      //{ title: "Data Overview", url: "/data" },
     ];
 
     pages = [...homeEntry,...caseStudies,...toolsHome,...tools,...methodsHome,...methods,...dataEntry,...data]

@@ -21,8 +21,18 @@ $custom-colors: (
 // 3️⃣ Import Bootstrap’s variables and merge
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
-@import "bootstrap/scss/maps";
 $theme-colors: map-merge($theme-colors, $custom-colors);
+@import "bootstrap/scss/maps";
+
+
+// build an rgb map for your custom colors
+$custom-colors-rgb: ();
+@each $name, $color in $custom-colors {
+  $custom-colors-rgb: map-merge($custom-colors-rgb, ($name: to-rgb($color)));
+}
+
+// merge into Bootstrap's theme rgb map (name depends on version)
+$theme-colors-rgb: map-merge($theme-colors-rgb, $custom-colors-rgb);
 
 // ---- Add semantic variants for LIGHT mode ----
 // Bootstrap 5.3 uses these semantic tokens in components like alerts. [1](https://getbootstrap.com/docs/5.3/customize/color/)

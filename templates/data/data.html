@@ -114,9 +114,9 @@
                         <span class="badge bg-vhplight-blue text-secondary rounded-pill align-content-center">{{ study.type or 'unknown' }}</span>
                     </div>
                     <div class = "card-header bg-white align-contents-center">
-                            {% if study.metadata.case_study%}<a role="button" href={{url_for('casestudy', case=study.metadata.case_study|lower)}} style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{study.metadata.case_study|capitalize }}</a>{%endif%}
-                            {% if study.metadata.regulatory_question%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 disabled btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{study.metadata.regulatory_question|capitalize}}</a>{%endif%}
-                            {% if study.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{study.metadata.flow_step |capitalize}}</a>{%endif%}
+                            {% if study.metadata.case_study%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower)}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{study.metadata.case_study|capitalize }}</a>{%endif%}
+                            {% if study.metadata.regulatory_question%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower, step=study.metadata.regulatory_question )}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{study.metadata.regulatory_question|capitalize}}</a>{%endif%}
+                            {% if study.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 disabled btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{study.metadata.flow_step |capitalize}}</a>{%endif%}
                     </div>
                     <div class="card-body">
                         <h5 class="card-title" style="word-break: break-word;">
@@ -218,6 +218,29 @@
             showFilterPanel: {% if filter_case_study or filter_flow_step or filter_regulatory_question %}true{% else %}false{% endif %}
         });
     });
+</script>
+
+<script>
+(function () {
+  const el = document.getElementById('dataset-citation');
+  if (!el || typeof window.require !== 'function') return;
+
+  const doi = el.dataset.doi;
+  if (!doi) return;
+
+  const Cite = window.require('citation-js');
+
+  Cite.async(doi).then(cite => {
+    el.innerHTML = cite.format('bibliography', {
+      format: 'html',
+      template: 'apa',
+      lang: 'en-US'
+    });
+  }).catch(() => {
+    el.innerHTML =
+      '<p class="text-muted small mb-0">Could not format dataset citation.</p>';
+  });
+})();
 </script>
 
 {% endblock %}

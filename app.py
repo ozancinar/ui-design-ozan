@@ -348,6 +348,28 @@ def data():
 
 ################################################################################
 ### DataSet detail view
+
+
+@app.template_filter("split_text_int")
+def split_text_int(value: None|str) -> tuple[str, None|int]:
+    """
+    Splits trailing integer from a string.
+    'S-VHPS21' -> ('S-VHPS', 21)
+    'ABC'      -> ('ABC', None)
+    'X-12A'    -> ('X-12A', None)   # only splits if digits are at the very end
+    """
+    # used to construct ftp file link *POTENTIALLY BRITTLE*
+    if value is None:
+        return ("", None)
+
+    s = str(value)
+    m = re.match(r"^(.*?)(\d+)$", s)
+    if not m:
+        return (s, None)
+
+    return (m.group(1), int(m.group(2)))
+
+
 @app.route("/data/<dataid>")
 def data_detail(dataid):
     bs_results, zen_results = get_repository_data(dataid)

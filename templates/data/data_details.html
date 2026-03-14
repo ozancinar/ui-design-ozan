@@ -2,9 +2,9 @@
 {% block content %}
 
 <link rel="stylesheet" href="/static/css/data.css" />
+<script src="https://cdn.jsdelivr.net/npm/citation-js"></script>
 
 {% with record = data.norm_metadata %}
-
 {# ---------------------------
    Schema.org / Bioschemas JSON-LD
    --------------------------- #}
@@ -61,7 +61,7 @@
   <div class="pb-2">
     <h1><span class="text-vhpteal">{{ val(record.title, 'Dataset') }}</span></h1>
     {% if record.description %}
-      <p class="text-secondary">{{ record.description }}</p>
+      <p class="text-secondary">{{ record.description |safe }}</p>
     {% endif %}
   </div>
 
@@ -139,6 +139,15 @@
              aria-controls="tab-publications"
              aria-selected="false">Publications</a>
         </li>
+        <li class="nav-item" role="presentation">
+          <a class="nav-link text-vhpteal "
+             id="tab-pubs-link"
+             data-bs-toggle="tab"
+             href="#tab-how-to-cite"
+             role="tab"
+             aria-controls="tab-how-to-cite"
+             aria-selected="false">How to Cite</a>
+        </li>
       </ul>
     </div>
 
@@ -153,24 +162,26 @@
             <div class="col-md-8">
               <h4>General information</h4>
 
-              <dl class="row">
-                <dt class="col-sm-4">Type</dt>
-                <dd class="col-sm-8">{{ val(record.type) }}</dd>
+              <dl class="row ps-3">
+                <dt class="col-sm-2">Type</dt>
+                <dd class="col-sm-10" >
+                  <span class="badge bg-vhplight-blue text-secondary rounded-pill align-middle">{{ val(record.type) }}</span>
+                </dd>
 
-                <dt class="col-sm-4">Internal ID</dt>
-                <dd class="col-sm-8">{{ val(record.id) }}</dd>
+                <dt class="col-sm-2">Internal ID</dt>
+                <dd class="col-sm-10">{{ val(record.id) }}</dd>
 
-                <dt class="col-sm-4">Release date</dt>
-                <dd class="col-sm-8">{{ fmt_date(record.ReleaseDate) }}</dd>
+                <dt class="col-sm-2">Release date</dt>
+                <dd class="col-sm-10">{{ fmt_date(record.ReleaseDate) }}</dd>
 
-                <dt class="col-sm-4">Version</dt>
-                <dd class="col-sm-8">{{ val(record.version) }}</dd>
+                <dt class="col-sm-2">Version</dt>
+                <dd class="col-sm-10">{{ val(record.version) }}</dd>
 
-                <dt class="col-sm-4">License</dt>
-                <dd class="col-sm-8">{{ val(record.license) }}</dd>
+                <dt class="col-sm-2">License</dt>
+                <dd class="col-sm-10">{{ val(record.license) }}</dd>
 
-                <dt class="col-sm-4">URL</dt>
-                <dd class="col-sm-8">
+                <dt class="col-sm-2">URL</dt>
+                <dd class="col-sm-10">
                   {% if record.url %}
                     <a href="{{ record.url }}" target="_blank" rel="noopener">{{ record.url }}</a>
                   {% else %}
@@ -178,8 +189,8 @@
                   {% endif %}
                 </dd>
 
-                <dt class="col-sm-4">DOI</dt>
-                <dd class="col-sm-8">
+                <dt class="col-sm-2">DOI</dt>
+                <dd class="col-sm-10">
                   {% if record.doi_url %}
                     <a href="{{ record.doi_url }}" target="_blank" rel="noopener">{{ record.doi }}</a>
                   {% elif record.doi %}
@@ -189,60 +200,142 @@
                   {% endif %}
                 </dd>
               </dl>
+             
+              <div class="card">
+                <div class="card-header py-2">
+                <h5 class="m-0">Files</h5>
+                </div>
+                <div class="card-body p-0">
+                  {% if record.files and record.files|length > 0 %}
+                    <ul class="list-group list-group-flush">
+                      {% for f in record.files %}
+                        <li class="list-group-item d-flex align-items-start gap-2">
+                          <i class="bi bi-file-earmark text-vhpteal"></i>
+                          <span>
+                          {% if f.url %}
+                            <a href="{{ f.url }}" target="_blank" rel="noopener">{{ val(f.name) }}</a>
+                          {% else %}
+                            {% if data.type == "study" %}
+                            <!-- id is accession number S-VHPS21-->
+                            {% set prefix, num = record.id | split_text_int %}
+                                {% if num is not none %}
+                                {% set num3 = "%03d"|format(num) %}
+                                <a href="https://ftp.ebi.ac.uk/pub/databases/biostudies/{{prefix}}/{{num3}}/{{record.id}}/Files/{{ f.name|urlencode }}" download rel="noopener">{{ val(f.name) }}</a>
+                                {% endif%}
+                            {% else%}
+                              {{ val(f.name) }}
+                            {% endif %}
+                          {% endif %}
+                          {% if f.size %} <span class="text-muted">({{ bytes_mb(f.size) }})</span>{% endif %}
+                          {% if f.checksum %}<br><span class="d-lg-block d-none text-muted">{{ f.checksum }}</span>{% endif %}
+                          </span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="text-muted p-3">No files listed.</p>
+                  {% endif %}
+                </div>
+                 <div class="card-footer">
+                </div>
+              </div>
 
-              {% if record.funding and record.funding|length > 0 %}
-                <h5 class="mt-3">Funding</h5>
-                <ul>
-                  {% for f in record.funding %}
-                    <li>
-                      {{ val(f.funder) }}
-                      {% if f.acronym %} ({{ f.acronym }}){% endif %}
-                      {% if f.code %} — {{ f.code }}{% endif %}
-                      {% if f.url %} — <a href="{{ f.url }}" target="_blank" rel="noopener">project</a>{% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% else %}
-                <h5 class="mt-3">Funding</h5>
-                <p class="text-muted mb-0">No funding information available.</p>
-              {% endif %}
             </div>
 
             <div class="col-md-4">
-              <h5>Authors</h5>
-              {% if record.authors and record.authors|length > 0 %}
-                <ul class="small">
-                  {% for a in record.authors %}
-                    <li>
-                      {{ val(a.name) }}
-                      {% if a.affiliation %}<br><span class="text-muted">{{ a.affiliation }}</span>{% endif %}
-                      {% if a.orcid %}<br><a href="https://orcid.org/{{ a.orcid }}" target="_blank" rel="noopener">ORCID: {{ a.orcid }}</a>{% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% else %}
-                <p class="text-muted">No author information available.</p>
-              {% endif %}
-
-              <h5 class="mt-3">Files</h5>
-              {% if record.files and record.files|length > 0 %}
-                <ul class="small">
-                  {% for f in record.files %}
-                    <li>
-                      {% if f.url %}
-                        <a href="{{ f.url }}" target="_blank" rel="noopener">{{ val(f.name) }}</a>
-                      {% else %}
-                        {{ val(f.name) }}
-                      {% endif %}
-                      {% if f.size %} <span class="text-muted">({{ bytes_mb(f.size) }})</span>{% endif %}
-                      {% if f.checksum %}<br><span class="text-muted">{{ f.checksum }}</span>{% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% else %}
-                <p class="text-muted">No files listed.</p>
-              {% endif %}
               
+              <div class="card">
+                <div class="card-header py-2">
+                  <h5 class="m-0">Authors</h5>
+                </div>
+
+                <div class="card-body p-0">
+                  {% if record.authors and record.authors|length > 0 %}
+                    <ul class="list-group list-group-flush">
+                      {% for a in record.authors %}
+                        <li class="list-group-item  d-flex align-items-start gap-2">
+                          <i class="bi bi-person-circle text-vhpteal"></i>
+
+                          <span class="small">
+                            <span class="fw-semibold">{{ val(a.name) }}</span>
+
+                            {% if a.affiliation %}
+                              <br>
+                              <span class="text-muted">{{ a.affiliation }}</span>
+                            {% endif %}
+
+                            {% if a.orcid %}
+                              <br>
+                              <a
+                                class="text-decoration-none d-inline-flex align-items-center gap-1"
+                                href="https://orcid.org/{{ a.orcid }}"
+                                target="_blank"
+                                rel="noopener"
+                                aria-label="View ORCID record - {{ a.orcid }}"
+                              >
+                                <img
+                                  width="16"
+                                  height="16"
+                                  src="/static/images/logos/icon/SVG/ORCID-iD_icon_vector.svg"
+                                  alt="ORCID iD"
+                                >
+                                <span>{{ a.orcid }}</span>
+                              </a>
+                            {% endif %}
+                          </span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="text-muted mb-0 p-3">No author information available.</p>
+                  {% endif %}
+                </div>
+                <div class="card-footer">
+                </div>
+              </div>
+
+              <div class="card mt-3">
+                <div class="card-header py-2">
+                  <h5 class="m-0">Funding</h5>
+                </div>
+
+                <div class="card-body p-0">
+                  {% if record.funding and record.funding|length > 0 %}
+                    <ul class="list-group list-group-flush">
+                      {% for f in record.funding %}
+                        <li class="list-group-item d-flex align-items-start gap-2">
+                          <i class="bi bi-bank text-vhpteal"></i>
+
+                          <span class="small">
+                            <span class="fw-semibold">{{ val(f.funder) }}</span>
+                            {% if f.acronym %} <span class="text-muted">({{ f.acronym }})</span>{% endif %}
+
+                            {% if f.code %}
+                              <br>
+                              <span class="text-muted">{{ f.code }}</span>
+                            {% endif %}
+
+                            {% if f.url %}
+                              <br>
+                              <a href="{{ f.url }}" target="_blank" rel="noopener"
+                                class="d-inline-flex align-items-center gap-1">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                                <span>Project</span>
+                              </a>
+                            {% endif %}
+                          </span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="text-muted mb-0 p-3">No funding information available.</p>
+                  {% endif %}
+                </div>
+                <div class="card-footer">
+                </div>
+              </div>
+              
+
             </div>
           </div>
         </div>
@@ -250,15 +343,146 @@
         {# ---------------------------
            PLACEHOLDER TABS (fill later)
            --------------------------- #}
-        <div class="tab-pane fade" id="tab-biomodel" role="tabpanel" aria-labelledby="tab-biomodel-link">
-          <h4>Biological Model</h4>
-          <p class="text-muted">Coming soon: organism, organ, tissue, cell line, etc.</p>
+
+         <div class="tab-pane fade" id="tab-biomodel" role="tabpanel" aria-labelledby="tab-biomodel-link">
+        <h4>Biological Model</h4>
+        <p class="text-muted">Coming soon: exposure type, duration, regimen, units, etc.</p>
+          </div>
+
+    
+        <div class="tab-pane fade" id="tab-chemical" role="tabpanel" aria-labelledby="tab-chemical-link">
+          <h4>Chemicals</h4>
+
+          {% set subs = data.metadata.raw_data.section.subsections
+            if data.metadata and data.metadata.raw_data and data.metadata.raw_data.section else [] %}
+
+          {% set chemicals = [] %}
+          {% for s in subs %}
+            {% if s.type and s.type|lower == 'chemical information' %}
+              {% set _ = chemicals.append(s) %}
+            {% endif %}
+          {% endfor %}
+
+          {% if chemicals|length > 0 %}
+            <div class="mt-3">
+
+              {% for chem in chemicals %}
+
+                
+                {# ---- Extract chemical fields from subsection attributes ---- #}
+                {% set ns = namespace(
+                  name=None,
+                  cas=None,
+                  cid=None,
+                  cc_id=None,
+                  cc_url=None
+                ) %}
+
+                {% for a in chem.attributes or [] %}
+                  {% if a.name == 'Chemical' %}
+                    {% set ns.name = a.value %}
+                  {% elif a.name == 'CAS' %}
+                    {% set ns.cas = a.value %}
+                  {% elif a.name in ['CID', 'PubChemCID', 'PubChem CID'] %}
+                    {% set ns.cid = a.value %}
+                  {% elif a.name == 'CompoundCloudID' %}
+                    {% set ns.cc_id = a.value %}
+                    {% for q in a.valqual or [] %}
+                      {% if q.name == 'URL' %}
+                        {% set ns.cc_url = q.value %}
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                {% endfor %}
+
+                {# ---- Render card ---- #}
+                <div class="card mb-3">
+                  <div class="card-body p-3">
+
+                    <div class="d-flex align-items-start gap-3">
+                      {# Optional: PubChem structure image (only if CID present) #}
+                      {% if ns.cid %}
+                        <div class="flex-shrink-0">
+                          <img
+                            src="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{{ ns.cid|urlencode }}/PNG"
+                            alt="Structure for CID {{ ns.cid }}"
+                            class="border rounded bg-white"
+                            style="width:120px; height:auto;"
+                            loading="lazy"
+                          >
+                        </div>
+                      {% else %}
+                        <div class="flex-shrink-0 pt-1">
+                          <i class="bi bi-droplet-fill text-vhpteal fs-4"></i>
+                        </div>
+                      {% endif %}
+
+                      <div class="w-100">
+                        {# Chemical name (optionally link to CompoundCloud) #}
+                        <div class="fw-semibold">
+                          {% if ns.cc_url %}
+                            <a href="{{ ns.cc_url }}" target="_blank" rel="noopener" class="text-decoration-none">
+                              {{ ns.name or '—' }}
+                            </a>
+                            <i class="bi bi-box-arrow-up-right ms-1 small text-muted"></i>
+                          {% else %}
+                            {{ ns.name or '—' }}
+                          {% endif %}
+                        </div>
+
+                        {# Identifiers row #}
+                        <div class="small mt-1">
+
+                          {# CAS -> Common Chemistry search #}
+                          {% if ns.cas %}
+                            <span class="text-muted">CAS:</span>
+                            <a href="https://commonchemistry.cas.org/results?q={{ ns.cas|urlencode }}"
+                              target="_blank" rel="noopener" class="text-decoration-none">
+                              <i class="bi bi-link-45deg text-vhpteal"></i> {{ ns.cas }}
+                            </a>
+                          {% endif %}
+
+                          {# PubChem CID link #}
+                          {% if ns.cid %}
+                            {% if ns.cas %}<br>{% endif %}
+                            <span class="text-muted">PubChem:</span>
+                            <a href="https://pubchem.ncbi.nlm.nih.gov/compound/{{ ns.cid|urlencode }}"
+                              target="_blank" rel="noopener" class="text-decoration-none">
+                              <i class="bi bi-link-45deg text-vhpteal"></i> CID {{ ns.cid }}
+                            </a>
+                          {% endif %}
+
+                          {# CompoundCloud ID link (if you want it explicitly as well) #}
+                          {% if ns.cc_id %}
+                            <br>
+                            <span class="text-muted">CompoundCloud:</span>
+                            {% if ns.cc_url %}
+                              <a href="{{ ns.cc_url }}" target="_blank" rel="noopener" class="text-decoration-none">
+                                <i class="bi bi-link-45deg text-vhpteal"></i> {{ ns.cc_id }}
+                              </a>
+                            {% else %}
+                              {{ ns.cc_id }}
+                            {% endif %}
+                          {% endif %}
+
+                        </div>
+
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted">No chemical information available.</p>
+          {% endif %}
         </div>
 
-        <div class="tab-pane fade" id="tab-chemical" role="tabpanel" aria-labelledby="tab-chemical-link">
-          <h4>Chemical</h4>
-          <p class="text-muted">Coming soon: chemical name(s), CAS, identifiers, concentrations, etc.</p>
-        </div>
+
+
 
         <div class="tab-pane fade" id="tab-exposure" role="tabpanel" aria-labelledby="tab-exposure-link">
           <h4>Exposure</h4>
@@ -277,58 +501,70 @@
 
         {# ---------------------------
            PUBLICATIONS TAB (DOI-based)
-           --------------------------- #}
+           --------------------------- #} 
+
         <div class="tab-pane fade" id="tab-publications" role="tabpanel" aria-labelledby="tab-pubs-link">
           <h4>Publications</h4>
 
-          {% if record.doi %}
-            {% set doi_str = record.doi %}
-            {% set doi_link = record.doi_url if record.doi_url else ('https://doi.org/' ~ doi_str) %}
+          {% if record.publications and record.publications|length > 0 %}
+            <div class="mt-3">
+              {% for pub in record.publications %}
+                <div class="publication-entry mb-3"
+                    data-doi="{{ pub.doi or '' }}">
 
-            <p>
-              Primary DOI:
-              <a href="{{ doi_link }}" target="_blank" rel="noopener">{{ doi_str }}</a>
-            </p>
+                  <div class="pub-citation text-muted small">
+                    <p class="mb-0">Loading citation…</p>
+                  </div>
 
-            {# Optional: citation-js formatting (works client-side) #}
-            <div id="bibliography" class="mt-3">
-              <p class="text-muted">Loading formatted citation…</p>
+                  {% if pub.doi %}
+                    <div class="small mt-1 d-flex align-items-center gap-2">
+                      <i class="bi bi-link-45deg text-vhpteal"></i>
+                      <a href="https://doi.org/{{ pub.doi }}"
+                        target="_blank"
+                        rel="noopener">
+                        https://doi.org/{{ pub.doi }}
+                      </a>
+                    </div>
+                  {% elif pub.pmid %}
+                    <div class="small mt-1">
+                      <span class="text-muted">PMID:</span>
+                      <a href="https://pubmed.ncbi.nlm.nih.gov/{{ pub.pmid }}/"
+                        target="_blank"
+                        rel="noopener">
+                        {{ pub.pmid }}
+                      </a>
+                    </div>
+                  {% elif pub.url %}
+                    <div class="small mt-1">
+                      <a href="{{ pub.url }}" target="_blank" rel="noopener">
+                        {{ pub.url }}
+                      </a>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endfor %}
             </div>
 
-            <script src="https://cdn.jsdelivr.net/npm/citation-js"></script>
-            <script>
-              (function () {
-                try {
-                  var doiInput = "{{ doi_str }}".split('doi.org/').pop();
-                  var Cite = require('citation-js');
-                  Cite.async(doiInput).then(function (cite) {
-                    document.getElementById('bibliography').innerHTML =
-                      "<ul>" +
-                      cite.format('bibliography', {
-                        format: 'html',
-                        template: 'apa',
-                        prepend: function () { return '<li>'; },
-                        append: function (e) {
-                          return ' <a href="https://doi.org/' + e.DOI + '" target="_blank" rel="noopener">CrossRef</a>' +
-                                 ' <a href="https://scholia.toolforge.org/doi/' + e.DOI + '" target="_blank" rel="noopener">Scholia</a></li>';
-                        }
-                      }) +
-                      "</ul>";
-                  }).catch(function () {
-                    document.getElementById('bibliography').innerHTML =
-                      '<p class="text-muted">Could not format citation automatically.</p>';
-                  });
-                } catch (e) {
-                  document.getElementById('bibliography').innerHTML =
-                    '<p class="text-muted">Citation formatting library not available.</p>';
-                }
-              })();
-            </script>
-
           {% else %}
-            <p class="text-muted">No DOI/publications available for this record.</p>
+            <p class="text-muted mb-0">No linked publications available.</p>
           {% endif %}
         </div>
+
+      <div class="tab-pane fade" id="tab-how-to-cite" role="tabpanel" aria-labelledby="tab-pubs-link">
+        {% if record.doi %}
+          <h4>Cite this dataset</h4>
+
+          <div id="dataset-citation"
+              class="mt-2"
+              data-doi="{{ record.doi }}">
+            <p class="text-muted small mb-0">Loading dataset citation…</p>
+          </div>
+        {% endif %}
+        </div>
+        
+
+
+
 
       </div>
     </div>
@@ -336,13 +572,84 @@
     <div class = "card-footer align-contents-center">
      
         {% if data.metadata.case_study%}<a role="button" href={{url_for('casestudy', case=data.metadata.case_study|lower)}} style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{data.metadata.case_study|capitalize }}</a>{%endif%}
-        {% if data.metadata.regulatory_question%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 disabled btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{data.metadata.regulatory_question|capitalize}}</a>{%endif%}
-        {% if data.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{data.metadata.flow_step |capitalize}}</a>{%endif%}
+        {% if data.metadata.regulatory_question%}<a role="button" href="{{url_for('casestudy', case=data.metadata.case_study|lower, step=data.metadata.regulatory_question )}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{data.metadata.regulatory_question|capitalize}}</a>{%endif%}
+        {% if data.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 btn disabled btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{data.metadata.flow_step |capitalize}}</a>{%endif%}
 
     </div>
       {% endif %}
   </div>
+  
+<script>
+(function () {
+  if (typeof window.require !== 'function') return;
+  const Cite = window.require('citation-js');
+
+  document.querySelectorAll('.publication-entry').forEach(entry => {
+    const container = entry.querySelector('.pub-citation');
+    const doi = (entry.dataset.doi || '').trim();
+
+    if (!doi) {
+      container.innerHTML = '<p class="text-muted small mb-0">Citation details unavailable.</p>';
+      return;
+    }
+
+    Cite.async(doi).then(cite => {
+      let html = cite.format('bibliography', {
+        format: 'html',
+        template: 'apa',
+        lang: 'en-US'
+      });
+
+      // remove DOI from formatted citation (shown separately)
+      const doiNorm = doi.toLowerCase();
+      html = html.replace(
+        new RegExp(`https?://doi\\.org/${doiNorm.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}`, 'gi'),
+        ''
+      );
+
+      container.innerHTML = html;
+
+      container.querySelectorAll('.csl-entry').forEach(entry => {
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-book text-vhpteal me-2 mt-1';
+        entry.classList.add();
+        entry.prepend(icon);
+      });
+    }).catch(() => {
+      container.innerHTML =
+        '<p class="text-muted small mb-0">Could not format citation automatically.</p>';
+    });
+  });
+})();
+</script>
+
+<script>
+(function () {
+  const el = document.getElementById('dataset-citation');
+  if (!el || typeof window.require !== 'function') return;
+
+  const doi = el.dataset.doi;
+  if (!doi) return;
+
+  const Cite = window.require('citation-js');
+
+  Cite.async(doi).then(cite => {
+    el.innerHTML = cite.format('bibliography', {
+      format: 'html',
+      template: 'apa',
+      lang: 'en-US'
+    });
+  }).catch(() => {
+    el.innerHTML =
+      '<p class="text-muted small mb-0">Could not format dataset citation.</p>';
+  });
+})();
+</script>
+
+
+
 </section>
+
 
 {% endwith %}
 {% endblock %}

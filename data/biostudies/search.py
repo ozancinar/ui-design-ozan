@@ -575,7 +575,7 @@ class BioStudiesExtractor:
                     elif attr_name == "regulatory question":
                         metadata["regulatory_question"] = attr_value
 
-                    elif attr_name == "flow step":
+                    elif attr_name == "process flow step":
                         metadata["flow_step"] = attr_value
 
                     # Categorize biological context
@@ -641,7 +641,7 @@ class BioStudiesExtractor:
                     elif attr_name == "regulatory question":
                         metadata["regulatory_question"] = attr_value
 
-                    elif attr_name == "flow step":
+                    elif attr_name == "process flow step":
                         metadata["flow_step"] = attr_value
 
                     # Categorize biological context

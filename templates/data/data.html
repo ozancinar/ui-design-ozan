@@ -116,7 +116,7 @@
                     <div class = "card-header bg-white align-contents-center">
                             {% if study.metadata.case_study%}<a role="button" href={{url_for('casestudy', case=study.metadata.case_study|lower)}} style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{study.metadata.case_study|capitalize }}</a>{%endif%}
                             {% if study.metadata.regulatory_question%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 disabled btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{study.metadata.regulatory_question|capitalize}}</a>{%endif%}
-                            {% if study.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 disabled p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{study.metadata.flow_step |capitalize}}</a>{%endif%}
+                            {% if study.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{study.metadata.flow_step |capitalize}}</a>{%endif%}
                     </div>
                     <div class="card-body">
                         <h5 class="card-title" style="word-break: break-word;">

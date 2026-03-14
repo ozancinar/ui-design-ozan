@@ -332,6 +332,15 @@
 
       </div>
     </div>
+     {% if record.type=="study"%}
+    <div class = "card-footer align-contents-center">
+     
+        {% if data.metadata.case_study%}<a role="button" href={{url_for('casestudy', case=data.metadata.case_study|lower)}} style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{data.metadata.case_study|capitalize }}</a>{%endif%}
+        {% if data.metadata.regulatory_question%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 disabled btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{data.metadata.regulatory_question|capitalize}}</a>{%endif%}
+        {% if data.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{data.metadata.flow_step |capitalize}}</a>{%endif%}
+
+    </div>
+      {% endif %}
   </div>
 </section>
 

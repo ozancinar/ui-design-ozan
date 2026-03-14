@@ -1,11 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap");
 // 1️⃣ Import Bootstrap's functions first
-@import "node_modules/bootstrap/scss/functions";
+@import "bootstrap/scss/functions";
 
 // 2️⃣ Define your custom colors
 $custom-colors: (
   "vhppink": #e6007e, //Colour for tools
-  "vhppink_distinct": #c3007a, //Colour for regulatory question
+  "vhppink-distinct": #c3007a, //Colour for regulatory question
   "vhpblue": #307bbf, //Default color and tools/models/data
   "vhporange": #eb5b25, // Colour for flow steps
   "vhppurple": #29235c,
@@ -19,8 +19,45 @@ $custom-colors: (
 );  
 
 // 3️⃣ Import Bootstrap’s variables and merge
-@import "node_modules/bootstrap/scss/variables";
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+@import "bootstrap/scss/maps";
 $theme-colors: map-merge($theme-colors, $custom-colors);
+
+// ---- Add semantic variants for LIGHT mode ----
+// Bootstrap 5.3 uses these semantic tokens in components like alerts. [1](https://getbootstrap.com/docs/5.3/customize/color/)
+$custom-text-emphasis: ();
+$custom-bg-subtle: ();
+$custom-border-subtle: ();
+
+@each $name, $color in $custom-colors {
+  $custom-text-emphasis: map-merge($custom-text-emphasis, ($name: shade-color($color, 60%)));
+  $custom-bg-subtle: map-merge($custom-bg-subtle, ($name: tint-color($color, 80%)));
+  $custom-border-subtle: map-merge($custom-border-subtle, ($name: tint-color($color, 60%)));
+}
+
+// These maps feed root CSS variable generation in v5.3’s color system. [1](https://getbootstrap.com/docs/5.3/customize/color/)[2](https://getbootstrap.com/docs/5.3/customize/color-modes/)
+$theme-colors-text: map-merge($theme-colors-text, $custom-text-emphasis);
+$theme-colors-bg-subtle: map-merge($theme-colors-bg-subtle, $custom-bg-subtle);
+$theme-colors-border-subtle: map-merge($theme-colors-border-subtle, $custom-border-subtle);
+
+// ---- Add semantic variants for DARK mode ----
+// _variables-dark.scss defines *-dark variables for default theme colors. You must add yours. [3](https://github.com/twbs/bootstrap/blob/main/scss/_variables-dark.scss)[2](https://getbootstrap.com/docs/5.3/customize/color-modes/)
+$custom-text-emphasis-dark: ();
+$custom-bg-subtle-dark: ();
+$custom-border-subtle-dark: ();
+
+@each $name, $color in $custom-colors {
+  // In dark mode, emphasis tends to be a tint (lighter), and subtle backgrounds are shades (darker). [3](https://github.com/twbs/bootstrap/blob/main/scss/_variables-dark.scss)
+  $custom-text-emphasis-dark: map-merge($custom-text-emphasis-dark, ($name: tint-color($color, 40%)));
+  $custom-bg-subtle-dark: map-merge($custom-bg-subtle-dark, ($name: shade-color($color, 80%)));
+  $custom-border-subtle-dark: map-merge($custom-border-subtle-dark, ($name: shade-color($color, 40%)));
+}
+
+// These maps are used when Bootstrap emits [data-bs-theme="dark"] CSS variables. [3](https://github.com/twbs/bootstrap/blob/main/scss/_variables-dark.scss)[2](https://getbootstrap.com/docs/5.3/customize/color-modes/)
+$theme-colors-text-dark: map-merge($theme-colors-text-dark, $custom-text-emphasis-dark);
+$theme-colors-bg-subtle-dark: map-merge($theme-colors-bg-subtle-dark, $custom-bg-subtle-dark);
+$theme-colors-border-subtle-dark: map-merge($theme-colors-border-subtle-dark, $custom-border-subtle-dark);
 
 // 4️⃣ Override Bootstrap link defaults BEFORE importing Bootstrap
 $link-color: $black;                      // Default link color
@@ -28,7 +65,7 @@ $link-hover-color: map-get($theme-colors, "vhpblue");  // Hover color to your bl
 $link-decoration: none; 
 
 // 5️⃣ Import the rest of Bootstrap (it now uses your colors)
-@import "node_modules/bootstrap/scss/bootstrap";
+@import "bootstrap/scss/bootstrap";
 
 /* Grid layout for Search/Filter Results */
 .results-section {

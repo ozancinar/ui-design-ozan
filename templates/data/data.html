@@ -169,7 +169,7 @@
                         </div>
                     </div>
                     <div class="card-footer btn-group bg-white border-0 py-3" role="group">
-                            <a href="{{ url_for('data_detail', dataid=dataset.id) }} "style="min-width:70px" class="btn btn-vhpteal" role="button" data-bs-toggle="tooltip" data-bs-title="View details"><i class="bi bi-info-circle"></i></a>
+                            <a href="{{ url_for('data_detail', dataid=dataset.id) }}" style="min-width:70px" class="btn btn-vhpteal" role="button" data-bs-toggle="tooltip" data-bs-title="View details"><i class="bi bi-info-circle"></i></a>
                             {% if dataset.doi_url%}
                             <a href="{{ dataset.doi_url}}" class="btn btn-outline-vhpteal d-inline" target="_blank"><i class="bi bi-box-arrow-up-right pe-1"></i> View on Zenodo</a>
                             {% endif%}

@@ -234,8 +234,8 @@ def inject_data_menu():
             id = hit.get("accession", "") or hit.get("doi_url", "") or hit.get("id", "")
             url = hit.get("url", "") or hit.get("doi_url")
             items.append({"id": id, "title": title, "url": url})
-            # sort by title
-            items = sorted(items, key=lambda x: x["title"].lower())
+        # sort by title
+        items = sorted(items, key=lambda x: x["title"].lower())
         return {"data_menu": items}
     else:
         return {"data_menu": []}

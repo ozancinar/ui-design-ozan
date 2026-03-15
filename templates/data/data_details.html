@@ -900,84 +900,82 @@
       {% endif %}
   </div>
   
-<script>
-(function () {
-  if (typeof window.Cite !== 'function') return;
-  const Cite = window.Cite;
+  <script>
+  (function () {
+    if (typeof window.require !== 'function') return;
+    const Cite = window.require('citation-js');
 
-  document.querySelectorAll('.publication-entry').forEach(entry => {
-    const container = entry.querySelector('.pub-citation');
-    const doi = (entry.dataset.doi || '').trim();
+    document.querySelectorAll('.publication-entry').forEach(entry => {
+      const container = entry.querySelector('.pub-citation');
+      const doi = (entry.dataset.doi || '').trim();
 
-    if (!doi) {
-      container.innerHTML = '<p class="text-muted small mb-0">Citation details unavailable.</p>';
-      return;
-    }
+      if (!doi) {
+        container.innerHTML = '<p class="text-muted small mb-0">Citation details unavailable.</p>';
+        return;
+      }
+
+      Cite.async(doi).then(cite => {
+        let html = cite.format('bibliography', {
+          format: 'html',
+          template: 'apa',
+          lang: 'en-US'
+        });
+
+        // remove DOI from formatted citation (shown separately)
+        const doiNorm = doi.toLowerCase();
+        html = html.replace(
+          new RegExp(`https?://doi\\.org/${doiNorm.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}`, 'gi'),
+          ''
+        );
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('.csl-entry').forEach(entry => {
+          const icon = document.createElement('i');
+          entry.classList.add();
+          entry.prepend(icon);
+        });
+      }).catch(() => {
+        container.innerHTML =
+          '<p class="text-muted small mb-0">Could not format citation automatically.</p>';
+      });
+    });
+  })();
+  </script>
+
+  <script>
+  (function () {
+    const el = document.getElementById('dataset-citation');
+    if (!el || typeof window.require !== 'function') return;
+    const doi = el.dataset.doi;
+    if (!doi) return;
+
+    const Cite = window.require('citation-js');
+    const btn = document.getElementById('copy-citation-btn');
 
     Cite.async(doi).then(cite => {
-      let html = cite.format('bibliography', {
+      el.innerHTML = cite.format('bibliography', {
         format: 'html',
         template: 'apa',
         lang: 'en-US'
       });
 
-      // remove DOI from formatted citation (shown separately)
-      const doiNorm = doi.toLowerCase();
-      html = html.replace(
-        new RegExp(`https?://doi\\.org/${doiNorm.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}`, 'gi'),
-        ''
-      );
-
-      container.innerHTML = html;
-
-      container.querySelectorAll('.csl-entry').forEach(entry => {
-        const icon = document.createElement('i');
-        entry.classList.add();
-        entry.prepend(icon);
-      });
-    }).catch(() => {
-      container.innerHTML =
-        '<p class="text-muted small mb-0">Could not format citation automatically.</p>';
-    });
-  });
-})();
-</script>
-
-<script>
-(function () {
-  const el = document.getElementById('dataset-citation');
-  if (!el || typeof window.Cite !== 'function') return;
-
-  const doi = el.dataset.doi;
-  if (!doi) return;
-
-  const Cite = window.Cite;
-
-  const btn = document.getElementById('copy-citation-btn');
-
-  Cite.async(doi).then(cite => {
-    el.innerHTML = cite.format('bibliography', {
-      format: 'html',
-      template: 'apa',
-      lang: 'en-US'
-    });
-
-    if (btn) {
-      btn.style.display = '';
-      btn.addEventListener('click', () => {
-        const text = cite.format('bibliography', { format: 'text', template: 'apa', lang: 'en-US' });
-        navigator.clipboard.writeText(text.trim()).then(() => {
-          btn.innerHTML = '<i class="bi bi-clipboard-check"></i>';
-          setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 2000);
+      if (btn) {
+        btn.style.display = '';
+        btn.addEventListener('click', () => {
+          const text = cite.format('bibliography', { format: 'text', template: 'apa', lang: 'en-US' });
+          navigator.clipboard.writeText(text.trim()).then(() => {
+            btn.innerHTML = '<i class="bi bi-clipboard-check"></i>';
+            setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 2000);
+          });
         });
-      });
-    }
-  }).catch(() => {
-    el.innerHTML =
-      '<p class="text-muted small mb-0">Could not format dataset citation.</p>';
-  });
-})();
-</script>
+      }
+    }).catch(() => {
+      el.innerHTML =
+        '<p class="text-muted small mb-0">Could not format dataset citation.</p>';
+    });
+  })();
+  </script>
 
 
 

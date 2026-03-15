@@ -234,27 +234,5 @@
     });
 </script>
 
-<script>
-(function () {
-  const el = document.getElementById('dataset-citation');
-  if (!el || typeof window.require !== 'function') return;
-
-  const doi = el.dataset.doi;
-  if (!doi) return;
-
-  const Cite = window.require('citation-js');
-
-  Cite.async(doi).then(cite => {
-    el.innerHTML = cite.format('bibliography', {
-      format: 'html',
-      template: 'apa',
-      lang: 'en-US'
-    });
-  }).catch(() => {
-    el.innerHTML =
-      '<p class="text-muted small mb-0">Could not format dataset citation.</p>';
-  });
-})();
-</script>
 
 {% endblock %}

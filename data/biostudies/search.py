@@ -804,6 +804,7 @@ class BioStudiesExtractor:
                             "last name",
                             "email",
                             "e-mail",
+                            "orcid",
                         ]:
                             author_info[attr_name] = attr_value
                         elif attr_name == "affiliation" and attr.get("reference"):
@@ -821,9 +822,11 @@ class BioStudiesExtractor:
                         email = author_info.get("email") or author_info.get(
                             "e-mail", ""
                         )
+                        orcid = author_info.get("orcid") or None
                         author_entry = {
                             "name": author_name,
                             "email": email,
+                            "orcid": orcid,
                             "affiliation_ref": author_affiliation_ref,
                             "affiliation_name": "",
                         }

@@ -115,8 +115,8 @@
                     </div>
                     <div class = "card-header bg-white align-items-center">
                             {% if study.metadata.case_study%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower)}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{study.metadata.case_study|capitalize }}</a>{%endif%}
-                            {% if study.metadata.regulatory_question%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower, step=study.metadata.regulatory_question )}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{study.metadata.regulatory_question|capitalize}}</a>{%endif%}
-                            {% if study.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 disabled btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{study.metadata.flow_step |capitalize}}</a>{%endif%}
+                            {% if study.metadata.regulatory_question%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower, question=study.metadata.regulatory_question )}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{study.metadata.regulatory_question}}</a>{%endif%}
+                            {% if study.metadata.flow_step%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower, question=study.metadata.regulatory_question, step=study.metadata.flow_step )}}"  style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{study.metadata.flow_step}}</a>{%endif%}
                     </div>
                     <div class="card-body">
                         <h5 class="card-title" style="word-break: break-word;">
@@ -131,7 +131,21 @@
                             {% if study.url%}
                             <a href="{{ study.url}}" class="btn btn-outline-vhpteal d-inline" target="_blank"><i class="bi bi-box-arrow-up-right pe-1"></i> View in BioStudies</a>
                             {% endif%}
-                            <a href="#" class="btn btn-outline-secondary d-inline view-details-btn"><i class="bi bi-box-fill pe-1"></i> RO-Crate</a>
+
+                            {% if study.metadata.rocrate_url %}
+                            <a href="{{ study.metadata.rocrate_url }}" class="btn btn-outline-secondary d-inline view-details-btn" rel="noopener" target="_blank">
+                                <i class="bi bi-box-fill pe-1"></i> RO‑Crate
+                            </a>
+                            {% else %}
+                            {# optional: show disabled button if not found #}
+                            <span class="btn btn-outline-secondary disabled d-inline">
+                                <i class="bi bi-box-fill pe-1"></i> RO‑Crate
+                            </span>
+                            {% endif %}
+                
+                            
+
+
                     </div>
                 </div>
                 {% endfor %}

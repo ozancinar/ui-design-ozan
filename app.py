@@ -804,8 +804,10 @@ def workflows():
 
 # Individual case study page, dynamically filled based on URL
 @app.route("/casestudies/<case>", defaults={"step": ""})
-@app.route("/casestudies/<case>/<path:step>")
-def casestudy(case, step):
+@app.route("/casestudies/<case>/<question>")
+@app.route("/casestudies/<case>/<question>/<step>")
+# additional routes are parsed client side via js to allow smooth animation
+def casestudy(case:str="", question:str="", step:str=""):
     if case not in CASESTUDIES:
         abort(404)
     # JS will handle steps via the URL

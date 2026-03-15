@@ -152,6 +152,35 @@ class BioStudiesExtractor:
             result["error"] = str(e)
             return result
 
+    def _pick_rocrate_file(self, files: list[dict]) -> dict | None:
+        """
+        Return the first file dict whose name/path contains 'rocrate' (case-insensitive).
+        Preference order:
+        1) files where exists_check.exists is True (if exists_check present)
+        2) otherwise first match
+        """
+        if not isinstance(files, list) or not files:
+            return None
+
+        def fname(f: dict) -> str:
+            if not isinstance(f, dict):
+                return ""
+            return str(f.get("name") or f.get("path") or "").lower()
+
+        # All matches by name/path
+        matches = [f for f in files if "rocrate" in fname(f)]
+        if not matches:
+            return None
+
+        # Prefer verified existing ones if available
+        verified = [
+            f for f in matches
+            if isinstance(f, dict)
+            and isinstance(f.get("exists_check"), dict)
+            and f["exists_check"].get("exists") is True
+        ]
+        return verified[0] if verified else matches[0]
+    
     # -----------------------------
     # API operations
     # -----------------------------
@@ -703,6 +732,12 @@ class BioStudiesExtractor:
             if section:
                 _add_links(section.get("links"))
 
+            # pick ro-crate link from available files -> requires filename to contain "rocrate"
+            rocrate = self._pick_rocrate_file(metadata.get("files", []))
+            metadata["rocrate_file"] = rocrate  # full dict (name/path/url/size/exists_check...)
+            metadata["rocrate_url"] = rocrate.get("url") if isinstance(rocrate, dict) else None
+
+            
             return metadata
 
         except Exception as e:

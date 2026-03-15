@@ -1,13 +1,18 @@
 import requests
 import json
 import time
+import re
+from urllib.parse import quote
 
 
 class BioStudiesExtractor:
     """Class to handle BioStudies API interactions"""
 
+    _SPLIT_RE = re.compile(r"^(.*?)(\d+)$")
+
     def __init__(self, collection: str = ""):
         self.base_url = "https://www.ebi.ac.uk/biostudies/api/v1"
+        self.ftp_base = "https://ftp.ebi.ac.uk/pub/databases/biostudies/"
         self.studies_url = self.base_url + "/studies"
         self.search_url = (
             f"{self.base_url}/{collection}/search"
@@ -15,6 +20,9 @@ class BioStudiesExtractor:
             else f"{self.base_url}/search"
         )
 
+    # -----------------------------
+    # ID validation / URL building
+    # -----------------------------
     def validate_study_id(self, study_id):
         """
         Validate BioStudies ID format
@@ -28,17 +36,13 @@ class BioStudiesExtractor:
         if not study_id or not isinstance(study_id, str):
             return False, None, "Study ID is required"
 
-        # Clean the study ID
         verified_id = study_id.strip().upper()
 
-        # Basic format validation for common BioStudies ID patterns
-        # Examples: S-ONTX26, E-MTAB-1234, S-BSST123
-        import re
-
+        # Examples: S-ONTX26, E-MTAB-1234, S-BSST123, S-VHPS21, S-TOXR1735
         patterns = [
-            r"^S-[A-Z0-9]+$",  # Studies starting with S-
-            r"^E-[A-Z]+-\d+$",  # Expression studies like E-MTAB-1234
-            r"^[A-Z]+-\d+$",  # General pattern like BSST123
+            r"^S-[A-Z0-9]+$",      # Studies starting with S-
+            r"^E-[A-Z]+-\d+$",     # Expression studies like E-MTAB-1234
+            r"^[A-Z]+-\d+$",       # General pattern like ABC-123
         ]
 
         if not any(re.match(pattern, verified_id) for pattern in patterns):
@@ -50,6 +54,107 @@ class BioStudiesExtractor:
 
         return True, verified_id, None
 
+    def split_text_int(self, value: str):
+        """
+        Splits trailing integer from a string.
+        'S-VHPS21' -> ('S-VHPS', 21)
+        'ABC'      -> ('ABC', None)
+        'X-12A'    -> ('X-12A', None)
+        """
+        if not value:
+            return value, None
+        m = self._SPLIT_RE.match(value)
+        if not m:
+            return value, None
+        prefix, num = m.group(1), int(m.group(2))
+        return prefix, num
+
+    def build_biostudies_https_file_url(self, accno: str, filename: str) -> str | None:
+        """
+        Constructs:
+        https://ftp.ebi.ac.uk/pub/databases/biostudies/{prefix}/{num3}/{accno}/Files/{filename}
+
+        Returns None if accno has no trailing integer.
+
+        Note:
+        - We keep "/" safe in case filename contains subfolders (rare, but possible).
+        """
+        prefix, num = self.split_text_int(accno)
+        if num is None or not filename:
+            return None
+
+        num3 = f"{num:03d}"
+
+        # Encode only the filename segment (allow "/" for potential subpaths)
+        safe_name = quote(filename, safe="/")
+
+        return (
+            self.ftp_base
+            + f"{prefix}/{num3}/{accno}/Files/{safe_name}"
+        )
+
+    def url_exists_no_download(self, url: str, timeout=(3.05, 10)):
+        """
+        Returns a dict describing existence with minimal data transfer.
+        - tries HEAD
+        - falls back to GET Range bytes=0-0
+        """
+        result = {
+            "url": url,
+            "exists": False,
+            "status_code": None,
+            "content_length": None,
+            "final_url": None,
+            "error": None,
+            "method": None,
+        }
+
+        if not url:
+            result["error"] = "Empty URL"
+            return result
+
+        try:
+            # 1) HEAD (preferred: no body)
+            r = requests.head(url, allow_redirects=True, timeout=timeout)
+            result["status_code"] = r.status_code
+            result["final_url"] = str(r.url)
+            result["method"] = "HEAD"
+
+            if r.status_code == 200:
+                result["exists"] = True
+                result["content_length"] = r.headers.get("Content-Length")
+                return result
+
+            # 2) Fallback if HEAD not allowed or forbidden, etc.
+            if r.status_code in (403, 405):
+                rg = requests.get(
+                    url,
+                    stream=True,
+                    allow_redirects=True,
+                    headers={"Range": "bytes=0-0"},
+                    timeout=timeout,
+                )
+                result["status_code"] = rg.status_code
+                result["final_url"] = str(rg.url)
+                result["method"] = "GET_RANGE"
+
+                # 206 Partial Content is a strong "exists"
+                if rg.status_code in (200, 206):
+                    result["exists"] = True
+                    result["content_length"] = rg.headers.get("Content-Length")
+
+                return result
+
+            # other codes (404, 410, 500...) treated as not found / not accessible
+            return result
+
+        except requests.RequestException as e:
+            result["error"] = str(e)
+            return result
+
+    # -----------------------------
+    # API operations
+    # -----------------------------
     def get_study_metadata(self, study_id):
         """
         Extract metadata for a given BioStudies ID
@@ -66,10 +171,8 @@ class BioStudiesExtractor:
             if not is_valid:
                 return {"error": validation_error}
 
-            # Construct API URL
             url = self.studies_url + f"/{verified_id}"
 
-            # Make request with proper headers
             headers = {
                 "Accept": "application/json",
                 "User-Agent": "BioStudies-VHP4Safety-App/1.0",
@@ -81,46 +184,34 @@ class BioStudiesExtractor:
                 try:
                     data = response.json()
                     if not data:
-                        return {
-                            "error": f"Empty response received for study {verified_id}"
-                        }
+                        return {"error": f"Empty response received for study {verified_id}"}
 
                     # Parse metadata first, then build URL using the derived collection (no extra API calls)
                     md = self.parse_metadata(data)
                     collection = md.get("collection", "")
-                    url = self.build_study_url(verified_id, collection).get("url", "")
-                    return md | {"url": url}
+                    web_url = self.build_study_url(verified_id, collection).get("url", "")
+                    return md | {"url": web_url}
+
                 except json.JSONDecodeError as e:
-                    return {
-                        "error": f"Invalid JSON response from BioStudies API: {str(e)}"
-                    }
+                    return {"error": f"Invalid JSON response from BioStudies API: {str(e)}"}
+
             elif response.status_code == 404:
                 return {
                     "error": f"Study '{verified_id}' not found in BioStudies database. Please check the ID and try again."
                 }
             elif response.status_code == 403:
-                return {
-                    "error": "Access forbidden. The study may be restricted or private."
-                }
+                return {"error": "Access forbidden. The study may be restricted or private."}
             elif response.status_code == 500:
                 return {"error": "BioStudies server error. Please try again later."}
             elif response.status_code == 503:
-                return {
-                    "error": "BioStudies service temporarily unavailable. Please try again later."
-                }
+                return {"error": "BioStudies service temporarily unavailable. Please try again later."}
             else:
-                return {
-                    "error": f"BioStudies API returned status {response.status_code}. Please try again later."
-                }
+                return {"error": f"BioStudies API returned status {response.status_code}. Please try again later."}
 
         except requests.exceptions.Timeout:
-            return {
-                "error": "Request timed out. BioStudies server may be slow. Please try again."
-            }
+            return {"error": "Request timed out. BioStudies server may be slow. Please try again."}
         except requests.exceptions.ConnectionError:
-            return {
-                "error": "Cannot connect to BioStudies server. Please check your internet connection."
-            }
+            return {"error": "Cannot connect to BioStudies server. Please check your internet connection."}
         except requests.exceptions.RequestException as e:
             return {"error": f"Network error: {str(e)}"}
         except Exception as e:
@@ -129,12 +220,6 @@ class BioStudiesExtractor:
     def get_study_collection(self, study_id):
         """
         Extract collection for a given BioStudies ID
-
-        Args:
-            study_id (str): BioStudies accession ID (e.g., S-ONTX26)
-
-        Returns:
-            dict: Parsed collection or error information
         """
         metadata = self.get_study_metadata(study_id)
         if "error" in metadata:
@@ -145,18 +230,11 @@ class BioStudiesExtractor:
     def build_study_url(self, study_id, collection: str = ""):
         """
         Build the URL to access the study in BioStudies web interface
-
-        Args:
-            study_id (str): BioStudies accession
-            collection (str): Optional collection name if already known
-        Returns:
-            dict: URL or error information
         """
         is_valid, verified_id, validation_error = self.validate_study_id(study_id)
         if not is_valid:
             return {"error": validation_error}
 
-        # If collection is provided, use it; otherwise, build the non-collection URL
         if collection:
             url = f"https://www.ebi.ac.uk/biostudies/{collection}/studies/{verified_id}"
         else:
@@ -164,6 +242,9 @@ class BioStudiesExtractor:
 
         return {"accession": verified_id, "url": url}
 
+    # -----------------------------
+    # Search / list
+    # -----------------------------
     def search_studies(
         self,
         query,
@@ -174,23 +255,11 @@ class BioStudiesExtractor:
     ) -> dict:
         """
         Search for studies in BioStudies database
-
-        Args:
-            query (str): Search query string
-            page (int): Page number for pagination
-            page_size (int): Number of results per page
-            load_metadata (bool): Whether to load metadata for each hit (default: True)
-                Only use when page_size is small to avoid performance issues
-            filter (list): Optional list of tuples of (field, value) to filter results (default: no filter)
-
-        Returns:
-            dict: Search results or error information
         """
         try:
             if not query or not isinstance(query, str):
                 return {"error": "Search query must be a non-empty string."}
 
-            # If filters are provided, metadata must be loaded
             filters_applied = bool(filters)
             if filters_applied:
                 load_metadata = True
@@ -202,9 +271,7 @@ class BioStudiesExtractor:
                 "User-Agent": "BioStudies-VHP4Safety-App/1.0",
             }
 
-            response = requests.get(
-                self.search_url, headers=headers, params=params, timeout=30
-            )
+            response = requests.get(self.search_url, headers=headers, params=params, timeout=30)
 
             if response.status_code == 200:
                 try:
@@ -215,27 +282,21 @@ class BioStudiesExtractor:
                     if not data or total_hits == 0:
                         return {"error": "No results found."}
 
-                    # Augment hits with URLs and metadata if requested
                     if load_metadata:
                         hits = self._hit_metadata(hits)
                     hits = self._hit_url(hits)
 
-                    # Apply filters if provided
                     if filters_applied:
                         hits = self._apply_filters(hits, filters)
 
-                        # Backfill if we don't have enough filtered results
                         page_size_met = len(hits) >= page_size
                         pages_fetched = 1
 
                         if not page_size_met:
-                            hits, page_size_met, pages_fetched = (
-                                self._backfill_filtered_results(
-                                    hits, page, page_size, filters, query
-                                )
+                            hits, page_size_met, pages_fetched = self._backfill_filtered_results(
+                                hits, page, page_size, filters, query
                             )
 
-                        # Build response with filtering metadata
                         return {
                             "totalHits": total_hits,
                             "hits": hits,
@@ -246,14 +307,12 @@ class BioStudiesExtractor:
                             "filters_applied": True,
                             "page_size_met": page_size_met,
                         }
-                    else:
-                        # No filtering - return standard response with normalized keys
-                        return data | {"hits": hits, "total": total_hits}
+
+                    return data | {"hits": hits, "total": total_hits}
 
                 except json.JSONDecodeError as e:
-                    return {
-                        "error": f"Invalid JSON response from BioStudies API: {str(e)}"
-                    }
+                    return {"error": f"Invalid JSON response from BioStudies API: {str(e)}"}
+
             elif response.status_code == 400:
                 return {"error": "Bad request. Please check your search parameters."}
             elif response.status_code == 403:
@@ -261,26 +320,90 @@ class BioStudiesExtractor:
             elif response.status_code == 500:
                 return {"error": "BioStudies server error. Please try again later."}
             elif response.status_code == 503:
-                return {
-                    "error": "BioStudies service temporarily unavailable. Please try again later."
-                }
+                return {"error": "BioStudies service temporarily unavailable. Please try again later."}
             else:
-                return {
-                    "error": f"BioStudies API returned status {response.status_code}. Please try again later."
-                }
+                return {"error": f"BioStudies API returned status {response.status_code}. Please try again later."}
 
         except requests.exceptions.Timeout:
-            return {
-                "error": "Request timed out. BioStudies server may be slow. Please try again."
-            }
+            return {"error": "Request timed out. BioStudies server may be slow. Please try again."}
         except requests.exceptions.ConnectionError:
-            return {
-                "error": "Cannot connect to BioStudies server. Please check your internet connection."
-            }
+            return {"error": "Cannot connect to BioStudies server. Please check your internet connection."}
         except requests.exceptions.RequestException as e:
             return {"error": f"Network error: {str(e)}"}
         except Exception as e:
             return {"error": f"Unexpected error occurred: {str(e)}"}
+
+    def list_studies(
+        self,
+        page=1,
+        page_size=50,
+        include_urls: bool = False,
+        load_metadata: bool = False,
+        filters: tuple[tuple] | None = None,
+    ) -> dict:
+        """
+        List studies in the configured BioStudies collection for a specific page.
+        """
+        filters_applied = bool(filters)
+        if filters_applied:
+            load_metadata = True
+            include_urls = True
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "BioStudies-VHP4Safety-App/1.0",
+        }
+        params = {"page": page, "pageSize": page_size}
+
+        try:
+            response = requests.get(self.search_url, headers=headers, params=params, timeout=30)
+        except requests.exceptions.RequestException as e:
+            return {"error": f"Network error during listing: {e}", "total": 0, "hits": []}
+
+        if response.status_code != 200:
+            return {
+                "error": f"BioStudies API returned status {response.status_code} while listing.",
+                "total": 0,
+                "hits": [],
+            }
+
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            return {"error": f"Invalid JSON response from BioStudies API: {str(e)}", "total": 0, "hits": []}
+
+        total_hits = data.get("totalHits") or data.get("total") or 0
+        hits = data.get("hits", [])
+
+        if include_urls:
+            hits = self._hit_url(hits)
+        if load_metadata:
+            hits = self._hit_metadata(hits)
+
+        if filters_applied:
+            hits = self._apply_filters(hits, filters)
+
+            page_size_met = len(hits) >= page_size
+            pages_fetched = 1
+
+            if not page_size_met:
+                hits, page_size_met, pages_fetched = self._backfill_filtered_results(
+                    hits, page, page_size, filters, query=None
+                )
+
+            return {
+                "totalHits": total_hits,
+                "total": total_hits,
+                "hits": hits,
+                "hits_returned": len(hits),
+                "page": page,
+                "pageSize": page_size,
+                "pages_fetched": pages_fetched,
+                "filters_applied": True,
+                "page_size_met": page_size_met,
+            }
+
+        return {"total": total_hits, "hits": hits}
 
     def _hit_url(self, hits: list) -> list:
         for hit in hits:
@@ -299,13 +422,6 @@ class BioStudiesExtractor:
     def _apply_filters(self, hits: list, filters: list[tuple]) -> list:
         """
         Filter hits based on metadata field values (case-insensitive AND logic)
-
-        Args:
-            hits (list): List of hits to filter
-            filters (list): List of tuples of (field_name, value) to filter by
-
-        Returns:
-            list: Filtered hits that match all filter conditions
         """
         if not filters:
             return hits
@@ -339,16 +455,6 @@ class BioStudiesExtractor:
     ) -> tuple:
         """
         Backfill filtered results by fetching additional pages until page_size is met or timeout
-
-        Args:
-            initial_hits (list): Initial filtered hits from first page
-            page (int): Starting page number
-            page_size (int): Target number of results
-            filters (list): List of filter tuples
-            query (str): Search query (None for list_studies)
-
-        Returns:
-            tuple: (filtered_hits, page_size_met, pages_fetched)
         """
         filtered = initial_hits[:]
         current_page = page
@@ -356,191 +462,64 @@ class BioStudiesExtractor:
         pages_fetched = 1
 
         while len(filtered) < page_size:
-            # Timeout check (30 seconds)
             if time.time() - start_time > 30:
                 break
 
-            # Fetch next page
             current_page += 1
 
             try:
+                params = {"page": current_page, "pageSize": page_size}
+                headers = {"Accept": "application/json", "User-Agent": "BioStudies-VHP4Safety-App/1.0"}
+
                 if query:
-                    # For search_studies
-                    params = {
-                        "query": query,
-                        "page": current_page,
-                        "pageSize": page_size,
-                    }
-                    headers = {
-                        "Accept": "application/json",
-                        "User-Agent": "BioStudies-VHP4Safety-App/1.0",
-                    }
-                    response = requests.get(
-                        self.search_url, headers=headers, params=params, timeout=30
-                    )
+                    params["query"] = query
 
-                    if response.status_code != 200:
-                        break
+                response = requests.get(self.search_url, headers=headers, params=params, timeout=30)
+                if response.status_code != 200:
+                    break
 
-                    data = response.json()
-                    next_hits = data.get("hits", [])
-                else:
-                    # For list_studies
-                    params = {"page": current_page, "pageSize": page_size}
-                    headers = {
-                        "Accept": "application/json",
-                        "User-Agent": "BioStudies-VHP4Safety-App/1.0",
-                    }
-                    response = requests.get(
-                        self.search_url, headers=headers, params=params, timeout=30
-                    )
-
-                    if response.status_code != 200:
-                        break
-
-                    data = response.json()
-                    next_hits = data.get("hits", [])
-
+                data = response.json()
+                next_hits = data.get("hits", [])
                 if not next_hits:
                     break
 
-                # Load metadata for next page hits
                 next_hits = self._hit_metadata(next_hits)
-
-                # Apply filters to next page
                 next_filtered = self._apply_filters(next_hits, filters)
                 filtered.extend(next_filtered)
                 pages_fetched += 1
 
             except Exception:
-                # On any error, stop backfilling
                 break
 
-        # Trim to exact page_size
         page_size_met = len(filtered) >= page_size
         return filtered[:page_size], page_size_met, pages_fetched
 
-    def list_studies(
-        self,
-        page=1,
-        page_size=50,
-        include_urls: bool = False,
-        load_metadata: bool = False,
-        filters: tuple[tuple] | None = None,
-    ) -> dict:
+    # -----------------------------
+    # Metadata parsing (FIXED)
+    # -----------------------------
+    def parse_metadata(self, raw_data: dict, *, validate_files: bool = True, file_timeout=(3.05, 10)):
         """
-        List studies in the configured BioStudies collection for a specific page.
+        Parse and structure the metadata from BioStudies API response.
 
-        Args:
-            page (int): Page number for pagination (default: 1)
-            page_size (int): Number of results per page (default: 50)
-            include_urls (bool): Whether to include study URLs in results (default: False)
-            load_metadata (bool): Whether to load metadata for each hit (default: False)
-                Only use when page_size is small to avoid performance issues
-            filter (list): Optional list of tuples of (field, value) to filter results (default: no filter)
-
-        Returns:
-            dict: Dictionary containing 'total' (total number of studies) and 'hits' (list of studies for the requested page)
-        """
-        # If filters are provided, metadata must be loaded
-        filters_applied = bool(filters)
-        if filters_applied:
-            load_metadata = True
-            include_urls = True
-
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": "BioStudies-VHP4Safety-App/1.0",
-        }
-
-        params = {"page": page, "pageSize": page_size}
-
-        try:
-            response = requests.get(
-                self.search_url, headers=headers, params=params, timeout=30
-            )
-        except requests.exceptions.RequestException as e:
-            return {
-                "error": f"Network error during listing: {e}",
-                "total": 0,
-                "hits": [],
-            }
-
-        if response.status_code != 200:
-            return {
-                "error": f"BioStudies API returned status {response.status_code} while listing.",
-                "total": 0,
-                "hits": [],
-            }
-
-        try:
-            data = response.json()
-        except json.JSONDecodeError as e:
-            return {
-                "error": f"Invalid JSON response from BioStudies API: {str(e)}",
-                "total": 0,
-                "hits": [],
-            }
-
-        total_hits = data.get("totalHits") or data.get("total") or 0
-        hits = data.get("hits", [])
-
-        # Add URLs if requested
-        if include_urls:
-            hits = self._hit_url(hits)
-        if load_metadata:
-            hits = self._hit_metadata(hits)
-
-        # Apply filters if provided
-        if filters_applied:
-            hits = self._apply_filters(hits, filters)
-
-            # Backfill if we don't have enough filtered results
-            page_size_met = len(hits) >= page_size
-            pages_fetched = 1
-
-            if not page_size_met:
-                hits, page_size_met, pages_fetched = self._backfill_filtered_results(
-                    hits, page, page_size, filters, query=None
-                )
-
-            # Build response with filtering metadata
-            return {
-                "totalHits": total_hits,
-                "total": total_hits,
-                "hits": hits,
-                "hits_returned": len(hits),
-                "page": page,
-                "pageSize": page_size,
-                "pages_fetched": pages_fetched,
-                "filters_applied": True,
-                "page_size_met": page_size_met,
-            }
-        else:
-            # No filtering - return standard response
-            return {"total": total_hits, "hits": hits}
-
-    def parse_metadata(self, raw_data):
-        """
-        Parse and structure the metadata from BioStudies API response
-
-        Args:
-            raw_data (dict): Raw JSON response from API
-
-        Returns:
-            dict: Structured metadata
+        FIX:
+        - Files are extracted ONLY here (enriched), not in _extract_comprehensive_metadata().
+          This prevents duplicates and ensures consistent structure.
         """
         try:
             metadata = {
                 "accession": raw_data.get("accno", "N/A"),
                 "title": raw_data.get("title", "N/A"),
                 "description": raw_data.get("description", "N/A"),
-                "release_date": raw_data.get("rdate", "N/A"),
+                "release_date": raw_data.get("rdate", raw_data.get("ReleaseDate", "N/A")),
                 "modification_date": raw_data.get("mdate", "N/A"),
                 "type": raw_data.get("type", "N/A"),
+
+                # VHP4Safety filterable fields
                 "case_study": "",
                 "regulatory_question": "",
                 "flow_step": "",
+                "collection": "",
+
                 "attributes": [],
                 "authors": [],
                 "files": [],
@@ -548,194 +527,205 @@ class BioStudiesExtractor:
                 "protocols": [],
                 "publications": [],
                 "organizations": [],
+
                 "biological_context": {},
                 "technical_details": {},
                 "experimental_design": {},
-                "raw_data": raw_data,  # Keep raw data for debugging
+
+                "raw_data": raw_data,
             }
 
-            # Extract attributes with enhanced categorization
-            if "attributes" in raw_data:
+            # ---- helpers
+            def _norm_attr_name(attr: dict) -> str:
+                return (attr.get("name") or "").strip().lower()
+
+            def _attr_value(attr: dict) -> str:
+                v = attr.get("value", "")
+                return "" if v is None else str(v)
+
+            def _capture_vhp_fields(attr_name: str, attr_value: str):
+                if attr_name == "attachto":
+                    metadata["collection"] = attr_value
+                elif attr_name == "case study":
+                    metadata["case_study"] = attr_value
+                elif attr_name == "regulatory question":
+                    metadata["regulatory_question"] = attr_value
+                elif attr_name == "process flow step":
+                    metadata["flow_step"] = attr_value
+
+            BIO_KEYS = {
+                "organism", "species", "organism part", "organ", "cell type",
+                "tissue", "disease", "disease state", "sample type",
+            }
+            TECH_KEYS = {
+                "platform", "instrument", "assay", "assay type", "library strategy",
+                "library source", "data type", "sequencing mode", "sequencing date",
+                "index adapters", "pipeline",
+            }
+            AUTHOR_KEYS = {"author", "authors", "contact", "submitter"}
+
+            def _categorize(attr_name: str, attr_value: str):
+                if attr_name in BIO_KEYS:
+                    metadata["biological_context"][attr_name] = attr_value
+                elif attr_name in TECH_KEYS:
+                    metadata["technical_details"][attr_name] = attr_value
+                elif attr_name in AUTHOR_KEYS:
+                    if attr_value and attr_value not in metadata["authors"]:
+                        metadata["authors"].append(attr_value)
+
+            def _file_attrs_map(fobj: dict) -> dict:
+                out = {}
+                for a in (fobj or {}).get("attributes", []) or []:
+                    n = (a.get("name") or "").strip()
+                    if n:
+                        out[n] = a.get("value")
+                return out
+
+            def _iter_section_files(sec: dict):
+                if not isinstance(sec, dict):
+                    return
+                if isinstance(sec.get("files"), list):
+                    for f in sec["files"]:
+                        yield f
+                if isinstance(sec.get("subsections"), list):
+                    for s in sec["subsections"]:
+                        yield from _iter_section_files(s)
+
+            seen_files = set()
+
+            def _add_files(files_list):
+                if not isinstance(files_list, list):
+                    return
+
+                accno = metadata.get("accession") or raw_data.get("accno") or "N/A"
+
+                for f in files_list:
+                    if not isinstance(f, dict):
+                        continue
+
+                    file_path = (f.get("path") or f.get("name") or f.get("filename") or "").strip()
+                    if not file_path:
+                        continue
+
+                    dedupe_key = f"{accno}::{file_path}"
+                    if dedupe_key in seen_files:
+                        continue
+                    seen_files.add(dedupe_key)
+
+                    fam = _file_attrs_map(f)
+                    url = self.build_biostudies_https_file_url(accno, file_path)
+
+                    entry = {
+                        "name": file_path,
+                        "path": file_path,
+                        "size": f.get("size"),
+                        "type": f.get("type"),
+                        "description": fam.get("Description") or fam.get("description") or "",
+                        "file_kind": fam.get("Type") or fam.get("type") or "",
+                        "attributes": f.get("attributes", []),
+                        "url": url,
+                        "exists_check": None,
+                        "raw": f,
+                    }
+
+                    if validate_files and url:
+                        entry["exists_check"] = self.url_exists_no_download(url, timeout=file_timeout)
+
+                    metadata["files"].append(entry)
+
+            # ---- top-level attributes
+            if isinstance(raw_data.get("attributes"), list):
                 for attr in raw_data["attributes"]:
-                    attr_name = attr.get("name", "").lower()
-                    attr_value = attr.get("value", "")
+                    if not isinstance(attr, dict):
+                        continue
+                    name_raw = attr.get("name", "")
+                    attr_name = _norm_attr_name(attr)
+                    value = _attr_value(attr)
 
-                    metadata["attributes"].append(
-                        {"name": attr.get("name", ""), "value": attr_value}
-                    )
-                    # add collection
-                    if attr_name == "attachto":
-                        metadata["collection"] = attr_value
+                    metadata["attributes"].append({"name": name_raw, "value": value})
+                    _capture_vhp_fields(attr_name, value)
+                    _categorize(attr_name, value)
 
-                    # VHP4Safety filterable fields
-
-                    elif attr_name == "case study":
-                        metadata["case_study"] = attr_value
-
-                    elif attr_name == "regulatory question":
-                        metadata["regulatory_question"] = attr_value
-
-                    elif attr_name == "process flow step":
-                        metadata["flow_step"] = attr_value
-
-                    # Categorize biological context
-                    elif attr_name in [
-                        "organism",
-                        "species",
-                        "organism part",
-                        "organ",
-                        "cell type",
-                        "tissue",
-                        "disease",
-                        "disease state",
-                        "sample type",
-                    ]:
-                        metadata["biological_context"][attr_name] = attr_value
-
-                    # Categorize technical details
-                    elif attr_name in [
-                        "platform",
-                        "instrument",
-                        "assay",
-                        "assay type",
-                        "library strategy",
-                        "library source",
-                        "data type",
-                        "sequencing mode",
-                        "sequencing date",
-                        "index adapters",
-                        "pipeline",
-                    ]:
-                        metadata["technical_details"][attr_name] = attr_value
-
-                    # Extract authors
-                    elif attr_name in ["author", "authors", "contact", "submitter"]:
-                        if attr_value not in metadata["authors"]:
-                            metadata["authors"].append(attr_value)
-
-            # Build organization lookup table first
+            # ---- org lookup
             organization_lookup = {}
-            if "section" in raw_data:
-                self._build_organization_lookup(
-                    raw_data["section"], organization_lookup
-                )
+            if isinstance(raw_data.get("section"), dict):
+                self._build_organization_lookup(raw_data["section"], organization_lookup)
 
-            # Process main section attributes first (this contains the main study metadata)
-            if "section" in raw_data and "attributes" in raw_data["section"]:
-                for attr in raw_data["section"]["attributes"]:
-                    attr_name = attr.get("name", "").lower()
-                    attr_value = attr.get("value", "")
+            # ---- section attributes
+            section = raw_data.get("section") if isinstance(raw_data.get("section"), dict) else None
+            if section and isinstance(section.get("attributes"), list):
+                for attr in section["attributes"]:
+                    if not isinstance(attr, dict):
+                        continue
+                    name_raw = attr.get("name", "")
+                    attr_name = _norm_attr_name(attr)
+                    value = _attr_value(attr)
 
-                    # Update title and description from section if not found at top level
-                    if attr_name == "title" and metadata["title"] == "N/A":
-                        metadata["title"] = attr_value
-                    elif (
-                        attr_name == "description" and metadata["description"] == "N/A"
-                    ):
-                        metadata["description"] = attr_value
+                    if attr_name == "title" and (metadata["title"] == "N/A" or not metadata["title"]):
+                        metadata["title"] = value
+                    elif attr_name == "description" and (metadata["description"] == "N/A" or not metadata["description"]):
+                        metadata["description"] = value
 
-                    # VHP4Safety filterable fields may appear in section attributes
-                    elif attr_name == "case study":
-                        metadata["case_study"] = attr_value
+                    _capture_vhp_fields(attr_name, value)
+                    _categorize(attr_name, value)
+                    metadata["attributes"].append({"name": name_raw, "value": value})
 
-                    elif attr_name == "regulatory question":
-                        metadata["regulatory_question"] = attr_value
+            # ---- comprehensive extraction (NO FILES inside this anymore!)
+            if section:
+                self._extract_comprehensive_metadata(section, metadata, organization_lookup)
 
-                    elif attr_name == "process flow step":
-                        metadata["flow_step"] = attr_value
+            # ---- files (enriched, deduped)
+            if section:
+                _add_files(list(_iter_section_files(section)))
+            if isinstance(raw_data.get("files"), list):
+                _add_files(raw_data["files"])
 
-                    # Categorize biological context
-                    elif attr_name in [
-                        "organism",
-                        "species",
-                        "organism part",
-                        "organ",
-                        "cell type",
-                        "tissue",
-                        "disease",
-                        "disease state",
-                        "sample type",
-                    ]:
-                        metadata["biological_context"][attr_name] = attr_value
-
-                    # Categorize technical details
-                    elif attr_name in [
-                        "platform",
-                        "instrument",
-                        "assay",
-                        "assay type",
-                        "library strategy",
-                        "library source",
-                        "data type",
-                        "sequencing mode",
-                        "sequencing date",
-                        "index adapters",
-                        "pipeline",
-                    ]:
-                        metadata["technical_details"][attr_name] = attr_value
-
-                    # Add to main attributes as well
-                    metadata["attributes"].append(
-                        {"name": attr.get("name", ""), "value": attr_value}
-                    )
-
-            # Process sections for enhanced metadata extraction
-            if "section" in raw_data:
-                self._extract_comprehensive_metadata(
-                    raw_data["section"], metadata, organization_lookup
-                )
-
-            # Extract links with better categorization
-            if "links" in raw_data:
-                for link in raw_data["links"]:
+            # ---- links + publications
+            def _add_links(links_list):
+                if not isinstance(links_list, list):
+                    return
+                for link in links_list:
+                    if not isinstance(link, dict):
+                        continue
                     link_data = {
                         "url": link.get("url", ""),
                         "type": link.get("type", ""),
                         "description": link.get("description", ""),
+                        "attributes": link.get("attributes", []),
                     }
                     metadata["links"].append(link_data)
 
-                    # Check if it's a publication link
-                    link_type = link.get("type", "").lower()
-                    if (
-                        "doi" in link_type
-                        or "pubmed" in link_type
-                        or "publication" in link_type
-                    ):
+                    link_type = (link.get("type", "") or "").lower()
+                    if ("doi" in link_type) or ("pubmed" in link_type) or ("publication" in link_type):
                         metadata["publications"].append(link_data)
+
+            _add_links(raw_data.get("links"))
+            if section:
+                _add_links(section.get("links"))
 
             return metadata
 
         except Exception as e:
-            return {
-                "error": f"Failed to parse metadata: {str(e)}",
-                "raw_data": raw_data,
-            }
+            return {"error": f"Failed to parse metadata: {str(e)}", "raw_data": raw_data}
 
+    # -----------------------------
+    # Organisation lookup / deep extraction
+    # -----------------------------
     def _build_organization_lookup(self, section, org_lookup):
         """Build a lookup table for organization references"""
         if isinstance(section, dict):
-            # Look for organization sections
             if section.get("type", "").lower() in ["organization", "organisation"]:
                 org_id = section.get("accno", "")
                 if org_id and "attributes" in section:
                     org_data = {}
                     for attr in section["attributes"]:
-                        attr_name = attr.get("name", "").lower()
+                        attr_name = (attr.get("name", "") or "").lower()
                         attr_value = attr.get("value", "")
-                        if attr_name in [
-                            "name",
-                            "organization",
-                            "email",
-                            "address",
-                            "department",
-                            "affiliation",
-                        ]:
+                        if attr_name in ["name", "organization", "email", "address", "department", "affiliation"]:
                             org_data[attr_name] = attr_value
                     if org_data:
                         org_lookup[org_id] = org_data
 
-            # Process subsections recursively
             if "subsections" in section:
                 for subsection in section["subsections"]:
                     self._build_organization_lookup(subsection, org_lookup)
@@ -744,31 +734,19 @@ class BioStudiesExtractor:
             for item in section:
                 self._build_organization_lookup(item, org_lookup)
 
-    def _extract_comprehensive_metadata(
-        self, section, metadata, organization_lookup=None
-    ):
-        """Comprehensively extract all metadata from sections and subsections"""
+    def _extract_comprehensive_metadata(self, section, metadata, organization_lookup=None):
+        """
+        Comprehensively extract metadata from sections/subsections.
+
+        IMPORTANT FIX:
+        - DO NOT append files here (to avoid duplicates). Files are handled in parse_metadata().
+        """
         if organization_lookup is None:
             organization_lookup = {}
-        if isinstance(section, dict):
-            # Extract files
-            if "files" in section:
-                for file_info in section["files"]:
-                    metadata["files"].append(
-                        {
-                            "name": file_info.get("name", ""),
-                            "size": file_info.get("size", ""),
-                            "type": file_info.get("type", ""),
-                            "path": file_info.get("path", ""),
-                            "description": file_info.get("description", ""),
-                        }
-                    )
 
-            # Extract protocols
-            if (
-                section.get("type", "").lower() == "protocols"
-                or "protocol" in section.get("type", "").lower()
-            ):
+        if isinstance(section, dict):
+            # ---- protocols
+            if section.get("type", "").lower() == "protocols" or "protocol" in section.get("type", "").lower():
                 if "subsections" in section:
                     for protocol in section["subsections"]:
                         protocol_data = {
@@ -780,32 +758,22 @@ class BioStudiesExtractor:
                         if "attributes" in protocol:
                             for attr in protocol["attributes"]:
                                 protocol_data["attributes"].append(
-                                    {
-                                        "name": attr.get("name", ""),
-                                        "value": attr.get("value", ""),
-                                    }
+                                    {"name": attr.get("name", ""), "value": attr.get("value", "")}
                                 )
 
                         metadata["protocols"].append(protocol_data)
 
-            # Extract author and organization information
+            # ---- author and organization information
             if section.get("type", "").lower() in ["author", "contact", "person"]:
                 if "attributes" in section:
                     author_info = {}
                     author_affiliation_ref = None
 
                     for attr in section["attributes"]:
-                        attr_name = attr.get("name", "").lower()
+                        attr_name = (attr.get("name", "") or "").lower()
                         attr_value = attr.get("value", "")
 
-                        if attr_name in [
-                            "name",
-                            "first name",
-                            "last name",
-                            "email",
-                            "e-mail",
-                            "orcid",
-                        ]:
+                        if attr_name in ["name", "first name", "last name", "email", "e-mail", "orcid"]:
                             author_info[attr_name] = attr_value
                         elif attr_name == "affiliation" and attr.get("reference"):
                             author_affiliation_ref = attr_value
@@ -813,16 +781,13 @@ class BioStudiesExtractor:
                     if author_info:
                         author_name = author_info.get("name", "")
                         if not author_name:
-                            # Construct name from first/last
                             first = author_info.get("first name", "")
                             last = author_info.get("last name", "")
                             author_name = f"{first} {last}".strip()
 
-                        # Create author entry with affiliation info
-                        email = author_info.get("email") or author_info.get(
-                            "e-mail", ""
-                        )
+                        email = author_info.get("email") or author_info.get("e-mail", "")
                         orcid = author_info.get("orcid") or None
+
                         author_entry = {
                             "name": author_name,
                             "email": email,
@@ -831,406 +796,37 @@ class BioStudiesExtractor:
                             "affiliation_name": "",
                         }
 
-                        # Resolve affiliation if reference exists
-                        if (
-                            author_affiliation_ref
-                            and author_affiliation_ref in organization_lookup
-                        ):
+                        if author_affiliation_ref and author_affiliation_ref in organization_lookup:
                             resolved_org = organization_lookup[author_affiliation_ref]
-                            author_entry["affiliation_name"] = resolved_org.get(
-                                "name", ""
-                            )
+                            author_entry["affiliation_name"] = resolved_org.get("name", "")
 
                         if author_name:
-                            # Check if author already exists to avoid duplicates
                             existing_author = next(
-                                (
-                                    a
-                                    for a in metadata.get("author_details", [])
-                                    if a["name"] == author_name
-                                ),
+                                (a for a in metadata.get("author_details", []) if a.get("name") == author_name),
                                 None,
                             )
                             if not existing_author:
-                                if "author_details" not in metadata:
-                                    metadata["author_details"] = []
-                                metadata["author_details"].append(author_entry)
+                                metadata.setdefault("author_details", []).append(author_entry)
 
-                            # Keep simple authors list for backward compatibility
                             if author_name not in metadata["authors"]:
                                 metadata["authors"].append(author_name)
 
-            # Extract experimental design information
+            # ---- experimental design info
             if "attributes" in section:
                 for attr in section["attributes"]:
-                    attr_name = attr.get("name", "").lower()
+                    attr_name = (attr.get("name", "") or "").lower()
                     attr_value = attr.get("value", "")
 
-                    if attr_name in [
-                        "experimental factor",
-                        "variable",
-                        "treatment",
-                        "condition",
-                        "time point",
-                    ]:
-                        if "factors" not in metadata["experimental_design"]:
-                            metadata["experimental_design"]["factors"] = []
-                        metadata["experimental_design"]["factors"].append(
+                    if attr_name in ["experimental factor", "variable", "treatment", "condition", "time point"]:
+                        metadata["experimental_design"].setdefault("factors", []).append(
                             {"name": attr_name, "value": attr_value}
                         )
 
-            # Process subsections recursively
+            # ---- recurse
             if "subsections" in section:
                 for subsection in section["subsections"]:
-                    self._extract_comprehensive_metadata(
-                        subsection, metadata, organization_lookup
-                    )
+                    self._extract_comprehensive_metadata(subsection, metadata, organization_lookup)
 
         elif isinstance(section, list):
             for item in section:
-                self._extract_comprehensive_metadata(
-                    item, metadata, organization_lookup
-                )
-
-
-# Example of list_studies output with metadata loaded
-# {'total': 1289,
-#  'hits': [{'accession': 'S-TOXR889',
-#    'type': 'study',
-#    'title': 'CSY_UHEI1_DART_96-120h_1 summary data (drc)',
-#    'author': 'Thomas Braunbeck Rebecca von Hellfeld',
-#    'links': 1,
-#    'files': 109,
-#    'release_date': '2024-09-15',
-#    'views': 174,
-#    'isPublic': True,
-#    'metadata': {'accession': 'S-TOXR889',
-#     'title': 'CSY_UHEI1_DART_96-120h_1 summary data (drc)',
-#     'description': 'N/A',
-#     'release_date': 'N/A',
-#     'modification_date': 'N/A',
-#     'type': 'submission',
-#     'attributes': [{'name': 'ReleaseDate', 'value': '2024-09-15'},
-#      {'name': 'AttachTo', 'value': 'EU-ToxRisk'},
-#      {'name': 'Method name', 'value': 'UHEI1_DART_96-120h'},
-#      {'name': 'Project part', 'value': 'CSY'},
-#      {'name': 'Toxicity domain', 'value': 'DART'},
-#      {'name': 'Title', 'value': 'CSY_UHEI1_DART_96-120h_1 summary data (drc)'},
-#      {'name': 'EU-ToxRisk format', 'value': 'Version 2.1'},
-#      {'name': 'Dataset type', 'value': 'summary'},
-#      {'name': 'Organism', 'value': 'Zebrafish'},
-# ...
-#      {'name': 'Volker Haake',
-#       'email': 'volker.haake@basf.com',
-#       'affiliation_ref': 'BASF',
-#       'affiliation_name': 'BASF SE, Experimental Toxicology and Ecology'}],
-#     'url': 'https://www.ebi.ac.uk/biostudies/EU-ToxRisk/studies/S-TOXR2127'}}]}
-# Output is truncated for brevity
-
-# Example of full element in hits
-# {'accession': 'S-TOXR1735',
-#    'type': 'study',
-#    'title': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_summary',
-#    'author': 'Anna Forsby Andrea Cediel',
-#    'links': 1,
-#    'files': 17,
-#    'release_date': '2024-03-27',
-#    'views': 110,
-#    'isPublic': True,
-#    'metadata': {'accession': 'S-TOXR1735',
-#     'title': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_summary',
-#     'description': 'N/A',
-#     'release_date': 'N/A',
-#     'modification_date': 'N/A',
-#     'type': 'submission',
-#     'attributes': [{'name': 'ReleaseDate', 'value': '2024-03-27'},
-#      {'name': 'AttachTo', 'value': 'EU-ToxRisk'},
-#      {'name': 'Method name',
-#       'value': 'Swetox6_NEURO_SH_Diff_3D_Multiplex_Exp120h'},
-#      {'name': 'Project part', 'value': 'CS4'},
-#      {'name': 'Toxicity domain', 'value': 'RDT NEURO'},
-#      {'name': 'Title',
-#       'value': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_summary'},
-#      {'name': 'EU-ToxRisk format', 'value': 'Version 2.1'},
-#      {'name': 'Dataset type', 'value': 'summary'},
-#      {'name': 'Organism', 'value': 'human'},
-#      {'name': 'Organ', 'value': 'brain'},
-#      {'name': 'Cell type', 'value': 'cell line'},
-#      {'name': 'Cell name', 'value': 'SH-SY5Y'},
-#      {'name': 'Treatment modality', 'value': 'repeated dose'},
-#      {'name': 'Information domain', 'value': 'functional'},
-#      {'name': 'Exposure time', 'value': '120 h'},
-#      {'name': 'Endpoint 1 definition', 'value': 'viability'},
-#      {'name': 'Endpoint 1 measure', 'value': 'ATP'},
-#      {'name': 'Endpoint 1 readout method', 'value': 'luminescence'},
-#      {'name': 'Compound', 'value': 'antimycin A'},
-#      {'name': 'Compound', 'value': 'azoxystrobin'},
-#      {'name': 'Compound', 'value': 'capsaicin'},
-#      {'name': 'Compound', 'value': 'carboxin'},
-#      {'name': 'Compound', 'value': 'cyazofamid'},
-#      {'name': 'Compound', 'value': 'deguelin'},
-#      {'name': 'Compound', 'value': 'fenpyroximate'},
-#      {'name': 'Compound', 'value': 'kresoxim-methyl'},
-#      {'name': 'Compound', 'value': 'mepronil'},
-#      {'name': 'Compound', 'value': 'picoxystrobin'},
-#      {'name': 'Compound', 'value': 'pyraclostrobin'},
-#      {'name': 'Compound', 'value': 'pyrimidifen'},
-#      {'name': 'Compound', 'value': 'rotenone'},
-#      {'name': 'Compound', 'value': 'tebufenpyrad'},
-#      {'name': 'Compound', 'value': 'thifluzamide'},
-#      {'name': 'Compound', 'value': 'trifloxystrobin'}],
-#     'authors': ['Anna Forsby', 'Andrea Cediel'],
-#     'files': [{'name': '',
-#       'size': 19714,
-#       'type': 'file',
-#       'path': 'S-TOXR1735_CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_summary_drc.xlsx',
-#       'description': ''},
-#      {'name': '',
-#       'size': 3011,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID1_Antimycin_A_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2764,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID2_Azoxystrobin_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2513,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID3_Capsaicin_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2454,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID4_Carboxine_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 3014,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID5_Cyazofamid_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2853,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID6_Deguelin_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2873,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID7_Fenpyroximate_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2676,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID8_Kresoxim-methyl_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2394,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID9_Mepronil_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2556,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID10_Picoxystrobin_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2845,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID11_Pyraclostrobin_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2643,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID12_Pyrimidifen_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2856,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID13_Rotenone_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2783,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID14_Tebufenpyrad_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2565,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID15_Thifluzamide_Endpoint_1.png',
-#       'description': ''},
-#      {'name': '',
-#       'size': 2603,
-#       'type': 'file',
-#       'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID16_Trifloxystrobin_Endpoint_1.png',
-#       'description': ''}],
-#     'links': [],
-#     'protocols': [],
-#     'publications': [],
-#     'organizations': [],
-#     'biological_context': {'organism': 'human',
-#      'organ': 'brain',
-#      'cell type': 'cell line'},
-#     'technical_details': {},
-#     'experimental_design': {},
-#     'raw_data': {'accno': 'S-TOXR1735',
-#      'attributes': [{'name': 'ReleaseDate', 'value': '2024-03-27'},
-#       {'name': 'AttachTo', 'value': 'EU-ToxRisk'}],
-#      'section': {'type': 'Study',
-#       'attributes': [{'name': 'Method name',
-#         'value': 'Swetox6_NEURO_SH_Diff_3D_Multiplex_Exp120h'},
-#        {'name': 'Project part', 'value': 'CS4'},
-#        {'name': 'Toxicity domain', 'value': 'RDT NEURO'},
-#        {'name': 'Title',
-#         'value': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_summary'},
-#        {'name': 'EU-ToxRisk format', 'value': 'Version 2.1'},
-#        {'name': 'Dataset type', 'value': 'summary'},
-#        {'name': 'Organism', 'value': 'human'},
-#        {'name': 'Organ', 'value': 'brain'},
-#        {'name': 'Cell type', 'value': 'cell line'},
-#        {'name': 'Cell name', 'value': 'SH-SY5Y'},
-#        {'name': 'Treatment modality', 'value': 'repeated dose'},
-#        {'name': 'Information domain', 'value': 'functional'},
-#        {'name': 'Exposure time', 'value': '120 h'},
-#        {'name': 'Endpoint 1 definition', 'value': 'viability'},
-#        {'name': 'Endpoint 1 measure', 'value': 'ATP'},
-#        {'name': 'Endpoint 1 readout method', 'value': 'luminescence'},
-#        {'name': 'Compound', 'value': 'antimycin A'},
-#        {'name': 'Compound', 'value': 'azoxystrobin'},
-#        {'name': 'Compound', 'value': 'capsaicin'},
-#        {'name': 'Compound', 'value': 'carboxin'},
-#        {'name': 'Compound', 'value': 'cyazofamid'},
-#        {'name': 'Compound', 'value': 'deguelin'},
-#        {'name': 'Compound', 'value': 'fenpyroximate'},
-#        {'name': 'Compound', 'value': 'kresoxim-methyl'},
-#        {'name': 'Compound', 'value': 'mepronil'},
-#        {'name': 'Compound', 'value': 'picoxystrobin'},
-#        {'name': 'Compound', 'value': 'pyraclostrobin'},
-#        {'name': 'Compound', 'value': 'pyrimidifen'},
-#        {'name': 'Compound', 'value': 'rotenone'},
-#        {'name': 'Compound', 'value': 'tebufenpyrad'},
-#        {'name': 'Compound', 'value': 'thifluzamide'},
-#        {'name': 'Compound', 'value': 'trifloxystrobin'}],
-#       'files': [{'path': 'S-TOXR1735_CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_summary_drc.xlsx',
-#         'size': 19714,
-#         'attributes': [{'name': 'Type', 'value': 'metadata and data file'},
-#          {'name': 'Description',
-#           'value': 'metadata and data in EU-ToxRisk format'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID1_Antimycin_A_Endpoint_1.png',
-#         'size': 3011,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID2_Azoxystrobin_Endpoint_1.png',
-#         'size': 2764,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID3_Capsaicin_Endpoint_1.png',
-#         'size': 2513,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID4_Carboxine_Endpoint_1.png',
-#         'size': 2454,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID5_Cyazofamid_Endpoint_1.png',
-#         'size': 3014,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID6_Deguelin_Endpoint_1.png',
-#         'size': 2853,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID7_Fenpyroximate_Endpoint_1.png',
-#         'size': 2873,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID8_Kresoxim-methyl_Endpoint_1.png',
-#         'size': 2676,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID9_Mepronil_Endpoint_1.png',
-#         'size': 2394,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID10_Picoxystrobin_Endpoint_1.png',
-#         'size': 2556,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID11_Pyraclostrobin_Endpoint_1.png',
-#         'size': 2845,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID12_Pyrimidifen_Endpoint_1.png',
-#         'size': 2643,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID13_Rotenone_Endpoint_1.png',
-#         'size': 2856,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID14_Tebufenpyrad_Endpoint_1.png',
-#         'size': 2783,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID15_Thifluzamide_Endpoint_1.png',
-#         'size': 2565,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'},
-#        {'path': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_ID16_Trifloxystrobin_Endpoint_1.png',
-#         'size': 2603,
-#         'attributes': [{'name': 'Type', 'value': 'image file'},
-#          {'name': 'Description', 'value': 'dose-response plot'}],
-#         'type': 'file'}],
-#       'links': [{'url': 'CS4_Swetox6a_NEURO_SH_Diff_3D_ATP_Exp120h_processed',
-#         'attributes': [{'name': 'Type', 'value': 'BioStudies Title'},
-#          {'name': 'Description', 'value': 'processed data location'}]}],
-#       'subsections': [{'type': 'Author',
-#         'attributes': [{'name': 'Name', 'value': 'Anna Forsby'},
-#          {'name': 'E-mail', 'value': 'anna.forsby@dbb.su.se'},
-#          {'name': 'Role', 'value': 'project leader'},
-#          {'name': 'affiliation', 'value': 'Swetox-KI', 'reference': True},
-#          {'name': 'affiliation',
-#           'value': 'Stockholm University',
-#           'reference': True}]},
-#        {'type': 'Author',
-#         'attributes': [{'name': 'Name', 'value': 'Andrea Cediel'},
-#          {'name': 'Role', 'value': 'project assistent'},
-#          {'name': 'affiliation', 'value': 'Swetox-KI', 'reference': True}]},
-#        {'accno': 'Swetox-KI',
-#         'type': 'Organization',
-#         'attributes': [{'name': 'Name',
-#           'value': 'Swedish Toxicology Sciences Research Center (Karolinska Institutet)'}]},
-#        {'accno': 'Stockholm University',
-#         'type': 'Organization',
-#         'attributes': [{'name': 'Name', 'value': 'Stockholm University'}]}]},
-#      'type': 'submission'},
-#     'case_study': '',
-#     'regulatory_question': '',
-#     'flow_step': '',
-#     'collection': 'EU-ToxRisk',
-#     'author_details': [{'name': 'Anna Forsby',
-#       'email': 'anna.forsby@dbb.su.se',
-#       'affiliation_ref': 'Stockholm University',
-#       'affiliation_name': 'Stockholm University'},
-#      {'name': 'Andrea Cediel',
-#       'email': '',
-#       'affiliation_ref': 'Swetox-KI',
-#       'affiliation_name': 'Swedish Toxicology Sciences Research Center (Karolinska Institutet)'}],
-#     'url': 'https://www.ebi.ac.uk/biostudies/EU-ToxRisk/studies/S-TOXR1735'}},
+                self._extract_comprehensive_metadata(item, metadata, organization_lookup)

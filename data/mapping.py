@@ -423,8 +423,7 @@ def normalize_biostudies(b: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(name, str)
         ]
 
- 
-# funding best-effort (normalized)
+    # funding best-effort (normalized)
     funding: List[Dict[str, Any]] = []
     subsections = g(b, "metadata", "raw_data", "section", "subsections", default=[]) or []
     if isinstance(subsections, list):
@@ -442,7 +441,6 @@ def normalize_biostudies(b: Dict[str, Any]) -> Dict[str, Any]:
             if not flat:
                 continue
 
-            # Map common BioStudies keys -> Zenodo-like schema
             funder = first(flat.get("Funder"), flat.get("Agency"), flat.get("Funding agency"), flat.get("Agency name"))
             code = first(flat.get("Grant_id"), flat.get("Grant ID"), flat.get("Grant"), flat.get("Grant number"))
             url = first(flat.get("URL"), flat.get("Url"), flat.get("Project URL"))
@@ -452,7 +450,6 @@ def normalize_biostudies(b: Dict[str, Any]) -> Dict[str, Any]:
                 "code": code,
                 "url": url,
                 "acronym": flat.get("Acronym") or flat.get("Programme") or flat.get("Program"),
-                # keep raw fields if you want for debugging / display
                 "raw": flat,
                 "source": "biostudies.raw_data.section.subsections",
             })
@@ -462,6 +459,28 @@ def normalize_biostudies(b: Dict[str, Any]) -> Dict[str, Any]:
         doi = None
 
     publications = extract_publications_biostudies(b)
+
+    # ✅ files: PASS THROUGH URL only (no rebuilding)
+    files_norm: List[Dict[str, Any]] = []
+    for f in files:
+        if not isinstance(f, dict):
+            continue
+        files_norm.append({
+            "name": first(f.get("name"), f.get("path")),
+            "size": f.get("size"),
+            "path": f.get("path"),
+            "url": f.get("url"),  # <-- do not rebuild
+            # optional (keep if useful)
+            "exists": g(f, "exists_check", "exists"),
+            "content_length": g(f, "exists_check", "content_length"),
+        })
+
+    # OPTIONAL strictness: attach warning if any url missing
+    missing = [x.get("path") for x in files_norm if x.get("path") and not x.get("url")]
+    if missing:
+        meta.setdefault("warnings", []).append(
+            f"{len(missing)} BioStudies file(s) missing url in metadata.files (pass-through mode)."
+        )
 
     return {
         "title": first(meta.get("title"), b.get("title")),
@@ -477,21 +496,12 @@ def normalize_biostudies(b: Dict[str, Any]) -> Dict[str, Any]:
         "id": first(meta.get("accession"), b.get("accession"), b.get("id")),
         "type": first(b.get("type"), meta.get("type"), "study"),
         "version": first(meta.get("version")),
-        "files": [
-            {
-                "name": first(f.get("name"), f.get("path")),
-                "size": f.get("size"),
-                "path": f.get("path"),
-            }
-            for f in files
-            if isinstance(f, dict)
-        ],
+        "files": files_norm,
         "url": first(b.get("url")),
         "doi": doi,
         "doi_url": doi_url(doi),
         "publications": publications,
     }
-
 
 # ---------- combine ----------
 

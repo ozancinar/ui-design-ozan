@@ -275,16 +275,7 @@
                           {% if f.url %}
                             <a href="{{ f.url }}" target="_blank" rel="noopener">{{ val(f.name) }}</a>
                           {% else %}
-                            {% if data.type == "study" %}
-                            <!-- id is accession number S-VHPS21-->
-                            {% set prefix, num = record.id | split_text_int %}
-                                {% if num is not none %}
-                                {% set num3 = "%03d"|format(num) %}
-                                <a href="https://ftp.ebi.ac.uk/pub/databases/biostudies/{{prefix}}/{{num3}}/{{record.id}}/Files/{{ f.name|urlencode }}" download rel="noopener">{{ val(f.name) }}</a>
-                                {% endif%}
-                            {% else%}
-                              {{ val(f.name) }}
-                            {% endif %}
+                            {{ val(f.name) }}
                           {% endif %}
                           {% if f.size %} <span class="text-muted">({{ bytes_mb(f.size) }})</span>{% endif %}
                           {% if f.checksum %}<br><span class="d-lg-block d-none text-muted">{{ f.checksum }}</span>{% endif %}

@@ -508,12 +508,12 @@ def normalize_biostudies(b: Dict[str, Any]) -> Dict[str, Any]:
 def normalize_all(
     bs_entries: List[Dict[str, Any]],
     zenodo_entries: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
-    Adds 'norm_metadata' to each dict in both lists and returns a combined list of normalized dicts.
+    Adds 'norm_metadata' to each dict in both lists and returns a 2-tuple
+    (bs_entries, zenodo_entries) with 'norm_metadata' populated.
     Robust: ignores non-dicts and missing lists.
     """
-    out: List[Dict[str, Any]] = []
 
     for z in zenodo_entries or []:
         if isinstance(z, dict):

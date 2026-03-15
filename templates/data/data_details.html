@@ -61,7 +61,7 @@
   <div class="pb-2">
     <h1><span class="text-vhpteal">{{ val(record.title, 'Dataset') }}</span></h1>
     {% if record.description %}
-      <p class="text-secondary">{{ record.description |safe }}</p>
+      <p class="text-secondary">{{ record.description }}</p>
     {% endif %}
   </div>
   
@@ -141,7 +141,7 @@
         </li>
         <li class="nav-item" role="presentation">
           <a class="nav-link text-vhpteal "
-             id="tab-pubs-link"
+             id="tab-how-to-cite-link"
              data-bs-toggle="tab"
              href="#tab-how-to-cite"
              role="tab"
@@ -891,9 +891,9 @@
       </div>
     </div>
      {% if record.type=="study"%}
-    <div class = "card-footer align-contents-center">
+    <div class="card-footer text-center">
      
-        {% if data.metadata.case_study%}<a role="button" href={{url_for('casestudy', case=data.metadata.case_study|lower)}} style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{data.metadata.case_study|capitalize }}</a>{%endif%}
+        {% if data.metadata.case_study%}<a role="button" href="{{url_for('casestudy', case=data.metadata.case_study|lower)}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{data.metadata.case_study|capitalize }}</a>{%endif%}
         {% if data.metadata.regulatory_question%}<a role="button" href="{{url_for('casestudy', case=data.metadata.case_study|lower, step=data.metadata.regulatory_question )}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{data.metadata.regulatory_question|capitalize}}</a>{%endif%}
         {% if data.metadata.flow_step%}<a role="button" style="font-size:0.75em;" class="lh-1 p-1 btn disabled btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{data.metadata.flow_step |capitalize}}</a>{%endif%}
 
@@ -903,8 +903,8 @@
   
 <script>
 (function () {
-  if (typeof window.require !== 'function') return;
-  const Cite = window.require('citation-js');
+  if (typeof window.Cite !== 'function') return;
+  const Cite = window.Cite;
 
   document.querySelectorAll('.publication-entry').forEach(entry => {
     const container = entry.querySelector('.pub-citation');
@@ -947,12 +947,12 @@
 <script>
 (function () {
   const el = document.getElementById('dataset-citation');
-  if (!el || typeof window.require !== 'function') return;
+  if (!el || typeof window.Cite !== 'function') return;
 
   const doi = el.dataset.doi;
   if (!doi) return;
 
-  const Cite = window.require('citation-js');
+  const Cite = window.Cite;
 
   const btn = document.getElementById('copy-citation-btn');
 

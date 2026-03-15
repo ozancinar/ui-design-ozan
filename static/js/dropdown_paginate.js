@@ -14,13 +14,27 @@
     }
 
     const PAGE_SIZE = parseInt(menu.dataset.pageSize || options.pageSize || 12, 10) || 12;
-    const URL_PREFIX = options.urlPrefix || ""
+    const URL_PREFIX = options.urlPrefix || "";
+
+    function buildMainUrl(primaryUrl, secondaryUrl, id) {
+      if (primaryUrl) return primaryUrl;
+      if (secondaryUrl) return secondaryUrl;
+      if (id) return URL_PREFIX + id;
+      return '';
+    }
 
     function normalize(raw) {
       if (!raw) return [];
       // If already an array of {id, title}, return normalized
       if (Array.isArray(raw)) {
-        return raw.map(it => ({ id: it.id || it.key || it.name || '', title: it.title || it.service || it.label || it.id || '', main_url: it.main_url || it.mainUrl || URL_PREFIX + it.id || '' }));
+        return raw.map(it => {
+          const id = it.id || it.key || it.name || '';
+          return {
+            id,
+            title: it.title || it.service || it.label || it.id || '',
+            main_url: buildMainUrl(it.main_url, it.mainUrl, id)
+          };
+        });
       }
       if (typeof raw === 'string') {
         try {
@@ -31,7 +45,11 @@
         }
       }
       if (typeof raw === 'object') {
-        return Object.keys(raw).map(k => ({ id: k, title: raw[k].service || raw[k].title || raw[k].label || k, main_url: raw[k].main_url || URL_PREFIX + k ||'' }));
+        return Object.keys(raw).map(k => ({
+          id: k,
+          title: raw[k].service || raw[k].title || raw[k].label || k,
+          main_url: buildMainUrl(raw[k].main_url, raw[k].mainUrl, k)
+        }));
       }
       return [];
     }

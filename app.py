@@ -395,7 +395,7 @@ def data_detail(dataid):
         return render_template("data/data_details.html", data=studies[0])
     elif datasets:
         return render_template("data/data_details.html", data=datasets[0])
-
+    return abort(404)
 
 ################################################################################
 ### Pages under 'Models'

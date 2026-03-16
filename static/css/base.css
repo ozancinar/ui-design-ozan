@@ -61,10 +61,10 @@ body::-webkit-scrollbar {
       border-color: var(--bs-vhppink);
 }
 
-.card-button-vhppink_distinct:hover, .card-button-vhppink_distinct:focus{
+.card-button-vhppink-distinct:hover, .card-button-vhppink-distinct:focus{
       color: white;
-      background-color: var(--bs-vhppink_distinct);
-      border-color: var(--bs-vhppink_distinct);
+      background-color: var(--bs-vhppink-distinct);
+      border-color: var(--bs-vhppink-distinct);
 
 }
 

@@ -29,7 +29,7 @@ function stepTypeToColor(type) {
   } else if (type == "process flow step" || type == "process-flow-step") {
     color = "btn-vhpdarkpurple"
   } else if (type == "regulatory question" || type == "regulatory-question") {
-    color = "btn-vhppink_distinct"
+    color = "btn-vhppink-distinct"
   } else if (type == "tool") {
     color = "btn-vhpblue"
   } else {

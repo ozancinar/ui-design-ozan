@@ -112,7 +112,7 @@ nav.navbar {
 }
 
 /* Coloring of the steps of the workflowheader */
-.step-item[data-step="1"] .step-icon { background-color: var(--bs-vhppink_distinct); border-color: var(--bs-vhppink_distinct); }
+.step-item[data-step="1"] .step-icon { background-color: var(--bs-vhppink-distinct); border-color: var(--bs-vhppink-distinct); }
 .step-item[data-step="2"] .step-icon { background-color: var(--bs-vhpdarkpurple);  border-color: var(--bs-vhpdarkpurple);}
 .step-item[data-step="3"] .step-icon { background-color: var(--bs-vhpdarkteal); border-color: var(--bs-vhpdarkteal); }
 .step-item[data-step="4"] .step-icon { background-color: var(--bs-vhplightteal); border-color: var(--bs-vhplightteal); } /*== I added this bootstrap color, since the bs-version of the vhplight purple did not exist==*/

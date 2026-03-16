@@ -1,5 +1,5 @@
 
-Version 0.7-8 (2026-03-16)
+Version 0.7-9 (2026-03-16)
 --------------------------------------------------------------------------------
 - Switched to the Swarm cluster architecture.
 - Creating urls for the individual case study pages.
@@ -8,6 +8,7 @@ Version 0.7-8 (2026-03-16)
 - Protoyping a functionality to turn off highlighting the glossary elements. 
 - Adding Zenodo datasets to the Data section. 
 - Adding an on/off button for glossary functionality. 
+- Visual element adjustments. 
 
 
 Version 0.6-17 (2026-02-12)

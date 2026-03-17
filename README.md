@@ -140,7 +140,7 @@ docker build -t vhp4safety_ui .
 docker run -d -p 5000:5050 vhp4safety_ui
 ```
 
-The application will be available at [http://localhost:5001/](http://localhost:5001/).
+The application will be available at [http://localhost:5000/](http://localhost:5000/).
 
 ---
 

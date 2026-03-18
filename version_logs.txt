@@ -1,5 +1,6 @@
 
 Version 0.7-10 (2026-03-16)
+* The last version before the 8th Hackathon, March 17-18, 2026. 
 --------------------------------------------------------------------------------
 - Switched to the Swarm cluster architecture.
 - Creating urls for the individual case study pages.
@@ -12,6 +13,7 @@ Version 0.7-10 (2026-03-16)
 
 
 Version 0.6-17 (2026-02-12)
+* The last version before switching to the Cluster Swarm architecture. 
 --------------------------------------------------------------------------------
 - Adding Wikipedia and Surf RSD links to tools when the information is available.
 - Updating the partner logos.

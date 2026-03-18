@@ -3,7 +3,7 @@
    * Initialize a paginated dropdown.
    * menuId: id of the <ul class="dropdown-menu"> element
    * toggleBtnId: id of the button that toggles the dropdown
-   * options: { pageSize, items } - items can override window.TOOLS_MENU
+   * options: { pageSize, items, urlPrefix } - items can override window.TOOLS_MENU
    */
   function initPaginatedDropdown(menuId, toggleBtnId, options = {}) {
     const menu = document.getElementById(menuId);
@@ -14,12 +14,27 @@
     }
 
     const PAGE_SIZE = parseInt(menu.dataset.pageSize || options.pageSize || 12, 10) || 12;
+    const URL_PREFIX = options.urlPrefix || "";
+
+    function buildMainUrl(primaryUrl, secondaryUrl, id) {
+      if (primaryUrl) return primaryUrl;
+      if (secondaryUrl) return secondaryUrl;
+      if (id) return URL_PREFIX + id;
+      return '';
+    }
 
     function normalize(raw) {
       if (!raw) return [];
       // If already an array of {id, title}, return normalized
       if (Array.isArray(raw)) {
-        return raw.map(it => ({ id: it.id || it.key || it.name || '', title: it.title || it.service || it.label || it.id || '', main_url: it.main_url || it.mainUrl || it.mainUrl || '' }));
+        return raw.map(it => {
+          const id = it.id || it.key || it.name || '';
+          return {
+            id,
+            title: it.title || it.service || it.label || it.id || '',
+            main_url: buildMainUrl(it.main_url, it.mainUrl, id)
+          };
+        });
       }
       if (typeof raw === 'string') {
         try {
@@ -30,7 +45,11 @@
         }
       }
       if (typeof raw === 'object') {
-        return Object.keys(raw).map(k => ({ id: k, title: raw[k].service || raw[k].title || raw[k].label || k, main_url: raw[k].main_url || '' }));
+        return Object.keys(raw).map(k => ({
+          id: k,
+          title: raw[k].service || raw[k].title || raw[k].label || k,
+          main_url: buildMainUrl(raw[k].main_url, raw[k].mainUrl, k)
+        }));
       }
       return [];
     }
@@ -196,7 +215,7 @@
           else if (menuEl.dataset.tools) items = JSON.parse(menuEl.dataset.tools);
 
           if (items) {
-            const inst = window.initPaginatedDropdown(menuId, btnId, { items, moreClasses: opts.moreClasses, moreTextClass: opts.moreTextClass, moreArrowClass: opts.moreArrowClass, pageSize: opts.pageSize });
+            const inst = window.initPaginatedDropdown(menuId, btnId, { items, moreClasses: opts.moreClasses, moreTextClass: opts.moreTextClass, moreArrowClass: opts.moreArrowClass, pageSize: opts.pageSize, urlPrefix: opts.urlPrefix,  });
             return inst;
           }
         } catch (err) {
@@ -238,6 +257,6 @@
   }
 
   // Symmetrically initialize both menus (they share the same behavior)
-  autoInitMenu('toolsMenu', 'toolsMenuBtn', {items: 'TOOLS_MENU',moreClasses:"text-vhpblue"});
-  autoInitMenu('methodsMenu', 'methodsMenuBtn', {items: 'METHODS_MENU', moreClasses:"text-success"});
+  autoInitMenu('toolsMenu', 'toolsMenuBtn', {items: 'TOOLS_MENU',moreClasses:"text-vhpblue", urlPrefix:"/tools/"});
+  autoInitMenu('methodsMenu', 'methodsMenuBtn', {items: 'METHODS_MENU', moreClasses:"text-success", urlPrefix:"/methods/"});
 })();

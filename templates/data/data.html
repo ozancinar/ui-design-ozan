@@ -9,7 +9,7 @@
         <p class="text-secondary fs-5">Explore datasets generated or used in <span id="collection-name-sub">{{ collection_name }} and hosted on BioStudies or Zenodo archives.</span></p>
     </div>
 
-    <nav class="navbar navbar-expand-lg bg-body-tertiary mb-3 d-inline">
+    <nav class="navbar navbar-expand-lg  mb-3 d-inline">
         <form method="GET" action="{{ url_for('data') }}" class="d-flex" role="search" id="search-form">
             <input type="text" class="form-control me-2" name="query" id="search-input" value="{{ search_query or '' }}" placeholder="Search for datasets (e.g., S-ONTX26, toxicity, liver...)" />
             <!-- Hidden inputs for filters -->
@@ -113,19 +113,39 @@
                         <span class="result-accession">{{ study.accession or study.accno }}</span>
                         <span class="badge bg-vhplight-blue text-secondary rounded-pill align-content-center">{{ study.type or 'unknown' }}</span>
                     </div>
+                    <div class = "card-header bg-white align-items-center">
+                            {% if study.metadata.case_study%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower)}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Case Study: {{study.metadata.case_study|capitalize }}</a>{%endif%}
+                            {% if study.metadata.regulatory_question%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower, question=study.metadata.regulatory_question )}}" style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Regulatory Question: {{study.metadata.regulatory_question}}</a>{%endif%}
+                            {% if study.metadata.flow_step%}<a role="button" href="{{url_for('casestudy', case=study.metadata.case_study|lower, question=study.metadata.regulatory_question, step=study.metadata.flow_step )}}"  style="font-size:0.75em;" class="lh-1 p-1 btn btn-outline-vhpteal rounded-pill border border-vhpteal d-inline-flex align-items-center text-wrap">Flow Step: {{study.metadata.flow_step}}</a>{%endif%}
+                    </div>
                     <div class="card-body">
                         <h5 class="card-title" style="word-break: break-word;">
                             {{ study.title or 'Untitled Study' }}
                         </h5>
                         <div class="card-text">
-                            <span class="text-secondary">Released: {{ study.release_date or study.rdate or 'N/A' }}</span>
+                            <span class="text-secondary">Released: {{ study.release_date or study.rdate or 'N/A' }}</span><br>
                         </div>
                     </div>
-                    <div class="card-footer bg-white border-0 py-3">
+                    <div class="card-footer btn-group bg-white border-0 py-3" role="group">
+                            <a href="{{ url_for('data_detail', dataid=study.accession) }}" style="min-width:70px" class="btn btn-vhpteal" role="button" data-bs-toggle="tooltip" data-bs-title="View details"><i class="bi bi-info-circle"></i></a>
                             {% if study.url%}
                             <a href="{{ study.url}}" class="btn btn-outline-vhpteal d-inline" target="_blank"><i class="bi bi-box-arrow-up-right pe-1"></i> View in BioStudies</a>
                             {% endif%}
-                            <a href="#" class="btn btn-outline-secondary d-inline view-details-btn"><i class="bi bi-box-fill pe-1"></i> RO-Crate</a>
+
+                            {% if study.metadata.rocrate_url %}
+                            <a href="{{ study.metadata.rocrate_url }}" class="btn btn-outline-secondary d-inline view-details-btn" rel="noopener" target="_blank">
+                                <i class="bi bi-box-fill pe-1"></i> RO‑Crate
+                            </a>
+                            {% else %}
+                            {# optional: show disabled button if not found #}
+                            <span class="btn btn-outline-secondary disabled d-inline">
+                                <i class="bi bi-box-fill pe-1"></i> RO‑Crate
+                            </span>
+                            {% endif %}
+                
+                            
+
+
                     </div>
                 </div>
                 {% endfor %}
@@ -148,7 +168,8 @@
                             <span class="text-secondary">Released: {{ dataset.metadata.publication_date or study.created or 'N/A' }}</span>
                         </div>
                     </div>
-                    <div class="card-footer bg-white border-0 py-3">
+                    <div class="card-footer btn-group bg-white border-0 py-3" role="group">
+                            <a href="{{ url_for('data_detail', dataid=dataset.id) }}" style="min-width:70px" class="btn btn-vhpteal" role="button" data-bs-toggle="tooltip" data-bs-title="View details"><i class="bi bi-info-circle"></i></a>
                             {% if dataset.doi_url%}
                             <a href="{{ dataset.doi_url}}" class="btn btn-outline-vhpteal d-inline" target="_blank"><i class="bi bi-box-arrow-up-right pe-1"></i> View on Zenodo</a>
                             {% endif%}
@@ -212,5 +233,6 @@
         });
     });
 </script>
+
 
 {% endblock %}

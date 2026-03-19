@@ -109,7 +109,7 @@
               <dd class="col-sm-8">{{ format_date(get('timestamp', '')) }}</dd>
             </dl>
 
-            <h5 class="mt-3">Workflow stages</h5>
+            <h5 class="mt-3">Safety Assessment Workflow</h5>
             {% set stage = get('vhp4safety_workflow_stage_content', '') or get('vhp4safety_workflow_stage', '—') %}
             {% set substage = get('workflow_substage_content', '') %}
             <p>
@@ -117,7 +117,7 @@
               {% if substage %}<small class="text-muted">{{ substage }}</small>{% endif %}
             </p>
 
-            <h5 class="mt-3">Regulatory relevance</h5>
+            <h5 class="mt-3">Regulatory question</h5>
             {% set reg_text = get('relevant_vhp4safety_regulatory_question(s)_content', '') or get('regulatory_question', '—') %}
             <p>{{ reg_text }}</p>
 

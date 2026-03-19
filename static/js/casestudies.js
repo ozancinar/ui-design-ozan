@@ -94,8 +94,10 @@ function updateStep2Content() {
   if (!step2Contents[currentStep1Value]) return;
   const nav = step2Contents[currentStep1Value];
   document.getElementById("step2-content").innerHTML =
-    `<h1 class="text-vhpblue">${nav.navTitle}</h1><p>${nav.navDescription}</p>` +
-    renderStepButtons(nav.steps, "step2", "selectStep2");
+  `<h1 class="text-vhpblue">${nav.navTitle}</h1>
+   <p>${nav.navDescription}</p>` +
+    (nav.image ? nav.image : "") +             
+  renderStepButtons(nav.steps, "step2", "selectStep2");
   document.getElementById("step2-bottom-content").innerHTML = buildAccordionHTML(nav.content);
 }
 function updateStep3Content() {

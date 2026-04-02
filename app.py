@@ -19,7 +19,11 @@ from data.zenodo.search import ZenodoExtractor
 from data.mapping import normalize_all
 
 ################################################################################
-CACHE_TIMEOUT = 60 * 60 * 24 * 5  # 5 days
+CACHE_TIMEOUT = 60 * 60 * 24 * 5    # 5 days -- [Ozan] I created a separate
+                                    # timeout object for the tools page because
+                                    # a 5-day caching is too long for it. 
+CACHE_TIMEOUT_SERVICE = 60          # Separate timeout for the tools page -- 60
+                                    # seconds. 
 ### Configuration for BioStudies Integration
 # Change these variables to switch between collections
 BIOSTUDIES_COLLECTION = "VHP4Safety"  # Replace with "EU-ToxRisk" to test
@@ -96,6 +100,7 @@ class RegexConverter(BaseConverter):
 cache_config = {
     "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
     "CACHE_DEFAULT_TIMEOUT": CACHE_TIMEOUT,  # 60 min chaching
+    "CACHE_SERVICE_TIMEOUT": CACHE_TIMEOUT_SERVICE
 }
 app = Flask(__name__)
 app.config.from_mapping(cache_config)
@@ -104,6 +109,25 @@ cache = Cache(app)
 
 @cache.memoize(timeout=CACHE_TIMEOUT)
 def get_json_dict(url: str, timeout: int = 5) -> dict:
+    """Fetch xxxx_index.json from the cloud repo and return as a dictionary.
+    Return an empty dict on any error to avoid breaking pages that depend on it.
+    """
+    try:
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code != 200:
+            return {}
+        data = resp.json()
+        if isinstance(data, dict):
+            return data
+        else:
+            return {}
+    except Exception:
+        return {}
+
+
+# A separate get_json_dict function for the tools page with its own timeout. 
+@cache.memoize(timeout=CACHE_TIMEOUT_SERVICE)
+def get_json_dict_service(url: str, timeout: int = 5) -> dict:
     """Fetch xxxx_index.json from the cloud repo and return as a dictionary.
     Return an empty dict on any error to avoid breaking pages that depend on it.
     """
@@ -206,7 +230,7 @@ def inject_tools_menu():
     """Fetch methods_index.json and expose a simple list of {id, title} to templates.
     Return an empty list on any error to avoid breaking pages.
     """
-    data = get_json_dict(SERVICES_URL)
+    data = get_json_dict_service(SERVICES_URL)
     if data:
         items = []
         for key, val in data.items() if isinstance(data, dict) else []:
@@ -246,7 +270,7 @@ def inject_data_menu():
 @app.route("/")
 def home():
     try:
-        tools = get_json_dict(
+        tools = get_json_dict_service(
             SERVICES_URL
         )  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
@@ -483,7 +507,7 @@ def models():
 @app.route("/tools")
 def tools():
     try:
-        tools = get_json_dict(
+        tools = get_json_dict_service(
             SERVICES_URL
         )  # Geting the service_list.json in the dictionary format.
         tools = list(tools.values())  # Converting the dictionary to a list object.
@@ -750,7 +774,7 @@ def method_page(methodid):
 def tool_page(toolname):
     # get the tools metadata:
     try:
-        tools = get_json_dict(SERVICES_URL)
+        tools = get_json_dict_service(SERVICES_URL)
         tools = dict(tools)
         # Geting the service_list.json in the dictionary format.
         # Converting the dictionary to a list object.

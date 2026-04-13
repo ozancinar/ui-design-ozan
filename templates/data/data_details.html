@@ -12,6 +12,9 @@
 {
   "@context": "https://schema.org/",
   "@type": "Dataset",
+  "http://purl.org/dc/terms/conformsTo": {
+    "@type": "CreativeWork", "@id": "https://bioschemas.org/profiles/Dataset/1.0-RELEASE"
+  },
   "@id": {{ (record.doi_url or record.url) | tojson }},
   "name": {{ (record.title or '') | tojson }},
   "description": {{ (record.description or '') | tojson }},

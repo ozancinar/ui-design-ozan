@@ -1,9 +1,10 @@
 
-Version 0.8-6 (2026-04-02)
+Version 0.8-7 (2026-04-14)
 --------------------------------------------------------------------------------
 - Visual and text updates.
 - Enhancing individual data pages with an UI. 
 - Implementing a timeout/caching system for getting external content files. 
+- Adding the sitemap. 
 
 
 Version 0.7-10 (2026-03-16)

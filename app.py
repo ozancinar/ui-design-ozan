@@ -5,7 +5,7 @@ import re
 
 import requests
 import urllib.parse
-from flask import Flask, abort, jsonify, render_template, request, Response
+from flask import Flask, abort, jsonify, render_template, request
 from flask_caching import Cache
 from jinja2 import TemplateNotFound
 from werkzeug.routing import BaseConverter
@@ -286,32 +286,6 @@ def home():
         num_case_studies=num_case_studies,
         num_datasets=num_datasets,
     )
-
-
-################################################################################
-### The sitemap.xml for search engines
-@app.route("/sitemap.xml")
-def sitemap():
-    sitemapContent = """<?xml version="1.0" encoding="utf-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://platform.vhp4safety.nl/</loc>
-  </url>
-  <url>
-    <loc>https://platform.vhp4safety.nl/casestudies</loc>
-  </url>
-  <url>
-    <loc>https://platform.vhp4safety.nl/tools</loc>
-  </url>
-  <url>
-    <loc>https://platform.vhp4safety.nl/methods</loc>
-  </url>
-  <url>
-    <loc>https://platform.vhp4safety.nl/data</loc>
-  </url>
-</urlset>
-""";
-    return Response(sitemapContent, mimetype='text/xml');
 
 
 ################################################################################
@@ -830,7 +804,23 @@ def tool_page(toolname):
     return render_template(
         "tools/tool.html", tool_json=tools[toolname], tool_details=tool_details
     )
+################################################################################
+### Pages under 'Implementation'
 
+# General Explore our work
+@app.route("/exploreourwork")
+def exploreourwork():
+    return render_template("exploreourwork.html")
+
+# General Training
+@app.route("/training")
+def training():
+    return render_template("training.html")
+
+# General Impact
+@app.route("/impact")
+def impact():
+    return render_template("impact.html")
 
 ################################################################################
 ### Pages under 'Process Flow'

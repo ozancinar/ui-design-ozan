@@ -600,6 +600,21 @@ def tools():
                 inst_url = "no_url"
             tool["inst_url"] = inst_url
 
+            # Fetch per-tool detail JSON to check hosting status
+            tool_id = tool.get("id", "")
+            vhp_hosted = False
+            if inst_url != "no_url" and tool_id:
+                try:
+                    detail_url = f"https://cloud.vhp4safety.nl/service/{tool_id}.json"
+                    detail_resp = requests.get(detail_url, timeout=5)
+                    if detail_resp.status_code == 200:
+                        detail = detail_resp.json()
+                        vhp_platform = detail.get("instance", {}).get("vhp-platform", "").lower()
+                        vhp_hosted = vhp_platform not in ("external", "independent", "")
+                except Exception:
+                    pass
+            tool["vhp_hosted"] = vhp_hosted
+
         # Getting selected stages from the URL.
         selected_stages = request.args.getlist("stage")
 

@@ -1,11 +1,12 @@
 
-Version 0.8-9 (2026-04-20)
+Version 0.8-10 (2026-04-20)
 --------------------------------------------------------------------------------
 - Visual and text updates.
 - Enhancing individual data pages with an UI. 
 - Implementing a timeout/caching system for getting external content files. 
 - Adding the sitemap. 
 - Fixing the process flow steps orders. 
+- User experience updates on the tools page. 
 
 
 Version 0.7-10 (2026-03-16)

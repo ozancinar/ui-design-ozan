@@ -5,7 +5,7 @@ import re
 
 import requests
 import urllib.parse
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, Response
 from flask_caching import Cache
 from jinja2 import TemplateNotFound
 from werkzeug.routing import BaseConverter
@@ -35,19 +35,19 @@ CASESTUDIES = ["thyroid", "kidney", "parkinson"]  # List of valid case studies
 
 ###Shared explanation dictionaries for filters (used in both tools and data page)
 STAGE_EXPLANATIONS = {
-  "Chemical Characteristics and Hazard Identification": "A Safety Assessment Workflow Step that categorizes services that use molecular structures, chemical descriptors, and databases to predict or analyze the properties, behavior, and potential risks of chemical substances.",
-  "Exposure": "A Safety Assessment Workflow Step which categorizes services that evaluate and analyze the route, duration, magnitude and frequency of exposure of an organism or (sub)population to one or multiple chemicals.",
-  "Toxicokinetics": "A Safety Assessment Workflow Step which categorizes services that analyze the kinetics (absorption, distribution, metabolism and excretion) of chemicals and how these processes influence the internal dose.",
-  "Toxicodynamics": "A Safety Assessment Workflow Step which categorizes services that use or extend the (quantitative) AOP framework to analyze and assess the interaction of chemicals with biological targets.",
-  "Adverse Outcome": "A Safety Assessment Workflow Step which specifically refers to clinical and epidemiological effects. It categorizes services that provide information on the toxicological endpoints and adverse outcomes at a clinical or epidemiological level of chemical exposures.",
-  "Other": "Other or unknown category.",
-  # Legacy labels (kept for the data/methods pages until their data sources migrate)
-  "ADME": "Absorption, distribution, metabolism, and excretion of a substance (toxic or not) in a living organism, following exposure to this substance.",
-  "Hazard Assessment": "The process of assessing the intrinsic hazard a substance poses to human health and/or the environment",
-  "Chemical Information": "Information about chemical properties and identity.",
-  "General": "Not specific to a flow step.",
-  "(External) exposure": "External exposure assessment.",
-  "Generic": "Generic category.",
+    "Chemical Characteristics and Hazard Identification": "A Safety Assessment Workflow Step that categorizes services that use molecular structures, chemical descriptors, and databases to predict or analyze the properties, behavior, and potential risks of chemical substances.",
+    "Exposure": "A Safety Assessment Workflow Step which categorizes services that evaluate and analyze the route, duration, magnitude and frequency of exposure of an organism or (sub)population to one or multiple chemicals.",
+    "Toxicokinetics": "A Safety Assessment Workflow Step which categorizes services that analyze the kinetics (absorption, distribution, metabolism and excretion) of chemicals and how these processes influence the internal dose.",
+    "Toxicodynamics": "A Safety Assessment Workflow Step which categorizes services that use or extend the (quantitative) AOP framework to analyze and assess the interaction of chemicals with biological targets.",
+    "Adverse Outcome": "A Safety Assessment Workflow Step which specifically refers to clinical and epidemiological effects. It categorizes services that provide information on the toxicological endpoints and adverse outcomes at a clinical or epidemiological level of chemical exposures.",
+    "Other": "Other or unknown category.",
+    # Legacy labels (kept for the data/methods pages until their data sources migrate)
+    "ADME": "Absorption, distribution, metabolism, and excretion of a substance (toxic or not) in a living organism, following exposure to this substance.",
+    "Hazard Assessment": "The process of assessing the intrinsic hazard a substance poses to human health and/or the environment",
+    "Chemical Information": "Information about chemical properties and identity.",
+    "General": "Not specific to a flow step.",
+    "(External) exposure": "External exposure assessment.",
+    "Generic": "Generic category.",
 }
 METHODS_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
 # TOOLS and SERVICES are synonymous
@@ -319,7 +319,7 @@ def sitemap():
 """;
     return Response(sitemapContent, mimetype='text/xml');
 
-  
+
 ################################################################################
 ### Pages under 'Data'
 @app.route("/data")
@@ -614,7 +614,7 @@ def tools():
                 except Exception:
                     pass
             tool["vhp_hosted"] = vhp_hosted
-            
+
         # Getting selected stages from the URL.
         selected_stages = request.args.getlist("stage")
 
@@ -857,25 +857,7 @@ def tool_page(toolname):
     return render_template(
         "tools/tool.html", tool_json=tools[toolname], tool_details=tool_details
     )
-  
-  
-################################################################################
-### Pages under 'Implementation'
 
-# General Explore our work
-@app.route("/exploreourwork")
-def exploreourwork():
-    return render_template("exploreourwork.html")
-
-# General Training
-@app.route("/training")
-def training():
-    return render_template("training.html")
-
-# General Impact
-@app.route("/impact")
-def impact():
-    return render_template("impact.html")
 
 ################################################################################
 ### Pages under 'Process Flow'
@@ -1168,5 +1150,3 @@ def privacy_policy():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050, debug=True)
-
-    

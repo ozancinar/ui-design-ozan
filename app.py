@@ -35,13 +35,19 @@ CASESTUDIES = ["thyroid", "kidney", "parkinson"]  # List of valid case studies
 
 ###Shared explanation dictionaries for filters (used in both tools and data page)
 STAGE_EXPLANATIONS = {
-    "ADME": "Absorption, distribution, metabolism, and excretion of a substance (toxic or not) in a living organism, following exposure to this substance.",
-    "Hazard Assessment": "The process of assessing the intrinsic hazard a substance poses to human health and/or the environment",
-    "Chemical Information": "Information about chemical properties and identity.",
-    "General": "Not specific to a flow step.",
-    "(External) exposure": "External exposure assessment.",
-    "Generic": "Generic category.",
-    "Other": "Other or unknown category.",
+  "Chemical Characteristics and Hazard Identification": "A Safety Assessment Workflow Step that categorizes services that use molecular structures, chemical descriptors, and databases to predict or analyze the properties, behavior, and potential risks of chemical substances.",
+  "Exposure": "A Safety Assessment Workflow Step which categorizes services that evaluate and analyze the route, duration, magnitude and frequency of exposure of an organism or (sub)population to one or multiple chemicals.",
+  "Toxicokinetics": "A Safety Assessment Workflow Step which categorizes services that analyze the kinetics (absorption, distribution, metabolism and excretion) of chemicals and how these processes influence the internal dose.",
+  "Toxicodynamics": "A Safety Assessment Workflow Step which categorizes services that use or extend the (quantitative) AOP framework to analyze and assess the interaction of chemicals with biological targets.",
+  "Adverse Outcome": "A Safety Assessment Workflow Step which specifically refers to clinical and epidemiological effects. It categorizes services that provide information on the toxicological endpoints and adverse outcomes at a clinical or epidemiological level of chemical exposures.",
+  "Other": "Other or unknown category.",
+  # Legacy labels (kept for the data/methods pages until their data sources migrate)
+  "ADME": "Absorption, distribution, metabolism, and excretion of a substance (toxic or not) in a living organism, following exposure to this substance.",
+  "Hazard Assessment": "The process of assessing the intrinsic hazard a substance poses to human health and/or the environment",
+  "Chemical Information": "Information about chemical properties and identity.",
+  "General": "Not specific to a flow step.",
+  "(External) exposure": "External exposure assessment.",
+  "Generic": "Generic category.",
 }
 METHODS_URL = "https://raw.githubusercontent.com/VHP4Safety/cloud/refs/heads/main/cap/methods_index.json"
 # TOOLS and SERVICES are synonymous
@@ -289,6 +295,32 @@ def home():
 
 
 ################################################################################
+### The sitemap.xml for search engines
+@app.route("/sitemap.xml")
+def sitemap():
+    sitemapContent = """<?xml version="1.0" encoding="utf-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://platform.vhp4safety.nl/</loc>
+  </url>
+  <url>
+    <loc>https://platform.vhp4safety.nl/casestudies</loc>
+  </url>
+  <url>
+    <loc>https://platform.vhp4safety.nl/tools</loc>
+  </url>
+  <url>
+    <loc>https://platform.vhp4safety.nl/methods</loc>
+  </url>
+  <url>
+    <loc>https://platform.vhp4safety.nl/data</loc>
+  </url>
+</urlset>
+""";
+    return Response(sitemapContent, mimetype='text/xml');
+
+  
+################################################################################
 ### Pages under 'Data'
 @app.route("/data")
 def data():
@@ -514,6 +546,12 @@ def tools():
 
         # Mapping the URLs with glossary IDs to their text values.
         stage_mapping = {
+            "https://vhp4safety.github.io/glossary#VHP0000153": "Chemical Characteristics and Hazard Identification",
+            "https://vhp4safety.github.io/glossary#VHP0000154": "Exposure",
+            "https://vhp4safety.github.io/glossary#VHP0000155": "Toxicokinetics",
+            "https://vhp4safety.github.io/glossary#VHP0000156": "Toxicodynamics",
+            "https://vhp4safety.github.io/glossary#VHP0000158": "Adverse Outcome",
+            # Legacy mappings (superseded by the Process Flow Step URIs above)
             "https://vhp4safety.github.io/glossary#VHP0000056": "ADME",
             "https://vhp4safety.github.io/glossary#VHP0000102": "Hazard Assessment",
             "https://vhp4safety.github.io/glossary#VHP0000148": "Chemical Information",
@@ -562,6 +600,21 @@ def tools():
                 inst_url = "no_url"
             tool["inst_url"] = inst_url
 
+            # Fetch per-tool detail JSON to check hosting status
+            tool_id = tool.get("id", "")
+            vhp_hosted = False
+            if inst_url != "no_url" and tool_id:
+                try:
+                    detail_url = f"https://cloud.vhp4safety.nl/service/{tool_id}.json"
+                    detail_resp = requests.get(detail_url, timeout=5)
+                    if detail_resp.status_code == 200:
+                        detail = detail_resp.json()
+                        vhp_platform = detail.get("instance", {}).get("vhp-platform", "").lower()
+                        vhp_hosted = vhp_platform not in ("external", "independent", "")
+                except Exception:
+                    pass
+            tool["vhp_hosted"] = vhp_hosted
+            
         # Getting selected stages from the URL.
         selected_stages = request.args.getlist("stage")
 
@@ -804,6 +857,8 @@ def tool_page(toolname):
     return render_template(
         "tools/tool.html", tool_json=tools[toolname], tool_details=tool_details
     )
+  
+  
 ################################################################################
 ### Pages under 'Implementation'
 
@@ -1113,3 +1168,5 @@ def privacy_policy():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050, debug=True)
+
+    

@@ -1,5 +1,5 @@
 
-Version 0.8-13 (2026-04-21)
+Version 0.8-14 (2026-04-23)
 --------------------------------------------------------------------------------
 - Visual and text updates.
 - Enhancing individual data pages with an UI. 
